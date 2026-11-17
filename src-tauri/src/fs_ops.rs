@@ -14,9 +14,37 @@ pub fn init_repo(repo_path: String) -> Result<(), String> {
         return Err("В этой папке Git-репозиторий уже существует".to_string());
     }
 
-    run_git(&repo_path, &["init"]).map(|_| ()).map_err(|e| {
-        format!("Не удалось инициализировать Git-репозиторий: {}", e)
-    })
+    run_git(&repo_path, &["init"])
+        .map(|_| ())
+        .map_err(|e| format!("Не удалось инициализировать Git-репозиторий: {}", e))
+}
+
+#[tauri::command]
+pub fn clone_repo(repo_url: String, destination_path: String) -> Result<(), String> {
+    let url = repo_url.trim();
+    if url.is_empty() || url.chars().any(char::is_control) {
+        return Err("Укажите корректный URL Git-репозитория".to_string());
+    }
+    if !(url.starts_with("https://")
+        || url.starts_with("http://")
+        || url.starts_with("ssh://")
+        || url.starts_with("git@"))
+    {
+        return Err("Поддерживаются URL формата HTTPS, HTTP, SSH или git@host:path".to_string());
+    }
+
+    let destination = Path::new(&destination_path);
+    if !destination.is_dir() {
+        return Err("Папка назначения не существует".to_string());
+    }
+    let mut entries = fs::read_dir(destination).map_err(|e| e.to_string())?;
+    if entries.next().is_some() {
+        return Err("Для клонирования выберите пустую папку".to_string());
+    }
+
+    run_git(&destination_path, &["clone", "--", url, "."])
+        .map(|_| ())
+        .map_err(|e| format!("Не удалось клонировать репозиторий: {}", e))
 }
 
 #[tauri::command]
@@ -28,21 +56,18 @@ pub fn open_repo(repo_path: String) -> Result<RepoState, String> {
 
     let status_map = get_status_map(&repo_path);
     let mut files = Vec::new();
-
     let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
     for entry in entries.flatten() {
         let file_name = entry.file_name().to_string_lossy().to_string();
-        if file_name.starts_with('.') {
+        if file_name.starts_with('.') || !entry.path().is_file() {
             continue;
         }
-        if entry.path().is_file() {
-            let git_status = status_map.get(&file_name).cloned();
-            files.push(FileEntry {
-                name: file_name,
-                path: entry.path().to_string_lossy().to_string(),
-                git_status,
-            });
-        }
+        let git_status = status_map.get(&file_name).cloned();
+        files.push(FileEntry {
+            name: file_name,
+            path: entry.path().to_string_lossy().to_string(),
+            git_status,
+        });
     }
 
     files.sort_by(|a, b| a.name.cmp(&b.name));
