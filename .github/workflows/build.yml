@@ -2,7 +2,8 @@ name: Build Tauri App
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -51,8 +52,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v0.1.0
-          releaseName: 'Git Editor v0.1.0'
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.0' }}
+          releaseName: 'Git Editor ${{ github.ref_type == ''tag'' && github.ref_name || ''v0.1.0'' }}'
           releaseBody: 'Автоматическая сборка из GitHub Actions'
           releaseDraft: true
-          prerelease: false
+          prerelease: 
