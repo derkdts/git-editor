@@ -1,0 +1,24 @@
+{
+  "$schema": "https://tauri.app",
+  "productName": "GitEditor",
+  "version": "0.1.0",
+  "identifier": "com.example.giteditor",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Git Editor",
+        "width": 1100,
+        "height": 720
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"]
+  }
+}
