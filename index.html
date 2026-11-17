@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tauri Git Editor</title>
+<style>
+  :root {
+    --bg-main: #18181b;
+    --bg-sidebar: #121215;
+    --bg-header: #1f1f23;
+    --bg-hover: #27272a;
+    --border: #2e2e32;
+    --text-main: #e4e4e7;
+    --text-muted: #a1a1aa;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --git-mod: #eab308;
+    --git-new: #22c55e;
+    --git-err: #ef4444;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-main);
+    color: var(--text-main);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .titlebar {
+    height: 40px;
+    background: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .repo-badge {
+    background: var(--bg-hover);
+    padding: 4px 10px;
+    border-radius: 6px;
+    color: var(--text-main);
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .repo-badge:hover { border-color: var(--accent); }
+
+  .btn-sync {
+    padding: 5px 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s;
+  }
+  .btn-sync:hover { background: var(--accent-hover); }
+  .btn-sync:disabled { opacity: 0.6; cursor: wait; }
+
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    width: 240px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar-section-title {
+    padding: 12px 14px 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+  .file-tree {
+    list-style: none;
+    padding: 0 8px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .file-item {
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    margin-bottom: 2px;
+  }
+  .file-item:hover { background: var(--bg-hover); }
+  .file-item.active { background: #27272a; color: #fff; font-weight: 500; }
+  .git-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .badge-m { color: var(--git-mod); background: rgba(234, 179, 8, 0.15); }
+  .badge-u { color: var(--git-new); background: rgba(34, 197, 94, 0.15); }
+
+  .editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-main);
+  }
+  .editor-tabs {
+    height: 36px;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .tab-active {
+    color: var(--text-main);
+    border-bottom: 2px solid var(--accent);
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 8px;
+  }
+  #code-area {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 16px;
+    resize: none;
+    user-select: text;
+  }
+  #code-area:focus { outline: none; }
+
+  .statusbar {
+    height: 28px;
+    background: var(--bg-sidebar);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    position: relative;
+  }
+  .status-left, .status-right { display: flex; align-items: center; gap: 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .dot-ok { background: var(--git-new); }
+  .dot-warn { background: var(--git-mod); }
+  .dot-err { background: var(--git-err); }
+
+  .commit-trigger {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-main);
+  }
+  .commit-trigger:hover { background: var(--bg-hover); }
+
+  .commit-popover {
+    position: absolute;
+    bottom: 34px;
+    left: 12px;
+    width: 360px;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--bg-header);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    display: none;
+    z-index: 100;
+  }
+  .commit-popover.open { display: block; }
+  .commit-popover-header {
+    padding: 8px 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .commit-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #26262a;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .commit-item:hover { background: var(--bg-hover); }
+  .commit-hash { color: var(--accent); font-family: monospace; margin-right: 6px; }
+</style>
+</head>
+<body>
+
+  <div class="titlebar">
+    <div class="repo-badge" id="repo-selector" onclick="chooseRepo()">📁 Открыть папку...</div>
+    <div>Git Editor</div>
+    <button class="btn-sync" id="sync-btn" onclick="triggerGitSync()" disabled>
+      <span>↻ Sync</span>
+    </button>
+  </div>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-section-title">Файлы репозитория</div>
+      <ul class="file-tree" id="file-list"></ul>
+    </aside>
+
+    <main class="editor-container">
+      <div class="editor-tabs">
+        <div class="tab-active">
+          <span id="current-tab-name">Файл не выбран</span>
+        </div>
+      </div>
+      <textarea id="code-area" placeholder="Откройте папку с Git-репозиторием и выберите файл..." disabled oninput="onTextEdit()"></textarea>
+    </main>
+  </div>
+
+  <footer class="statusbar">
+    <div class="status-left">
+      <span id="branch-name">🌿 —</span>
+      <span class="commit-trigger" id="last-commit-btn" onclick="toggleCommitList()">🕒 История коммитов</span>
+      <span id="git-status-text">Ожидание открытия папки</span>
+    </div>
+    <div class="status-right">
+      <span id="save-state">—</span>
+    </div>
+
+    <div class="commit-popover" id="commit-popover">
+      <div class="commit-popover-header">Выберите коммит для подгрузки</div>
+      <div id="commit-list"></div>
+    </div>
+  </footer>
+
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const { open } = window.__TAURI__.dialog;
+
+  let currentRepo = null;
+  let currentFilePath = null;
+
+  async function chooseRepo() {
+    try {
+      const selected = await open({ directory: true, multiple: false });
+      if (!selected) return;
+      await loadRepository(selected);
+    } catch (e) {
+      setStatus('err', String(e));
+    }
+  }
+
+  async function loadRepository(repoPath) {
+    try {
+      const state = await invoke('open_repo', { repoPath });
+      currentRepo = state.repo_path;
+
+      document.getElementById('repo-selector').innerText = '📁 ' + currentRepo.split(/[/\\]/).pop();
+      document.getElementById('branch-name').innerText = '🌿 ' + state.branch;
+      document.getElementById('sync-btn').disabled = false;
+
+      renderFiles(state.files);
+      renderCommits(state.commits);
+      setStatus('ok', 'Репозиторий загружен');
+
+      if (state.files.length > 0 && !currentFilePath) {
+        selectFile(state.files[0]);
+      }
+    } catch (e) {
+      setStatus('err', String(e));
+    }
+  }
+
+  function renderFiles(files) {
+    const list = document.getElementById('file-list');
+    list.innerHTML = '';
+    files.forEach(file => {
+      const li = document.createElement('li');
+      li.className = 'file-item' + (file.path === currentFilePath ? ' active' : '');
+      li.onclick = () => selectFile(file);
+
+      let badgeHtml = '';
+      if (file.git_status === 'M') badgeHtml = '<span class="git-badge badge-m">M</span>';
+      if (file.git_status === 'U') badgeHtml = '<span class="git-badge badge-u">U</span>';
+
+      li.innerHTML = `<span>📄 ${file.name}</span>${badgeHtml}`;
+      list.appendChild(li);
+    });
+  }
+
+  async function selectFile(file) {
+    try {
+      const content = await invoke('read_file', { filePath: file.path });
+      currentFilePath = file.path;
+      document.getElementById('current-tab-name').innerText = file.name;
+      const area = document.getElementById('code-area');
+      area.disabled = false;
+      area.value = content;
+      document.getElementById('save-state').innerText = 'Сохранено';
+
+      if (currentRepo) {
+        const state = await invoke('open_repo', { repoPath: currentRepo });
+        renderFiles(state.files);
+      }
+    } catch (e) {
+      setStatus('err', String(e));
+    }
+  }
+
+  function onTextEdit() {
+    if (!currentFilePath) return;
+    document.getElementById('save-state').innerText = 'Сохранение...';
+    setStatus('warn', 'Есть несинхронизированные правки');
+
+    clearTimeout(window.saveTimer);
+    window.saveTimer = setTimeout(async () => {
+      try {
+        const content = document.getElementById('code-area').value;
+        await invoke('save_file', { filePath: currentFilePath, content });
+        document.getElementById('save-state').innerText = 'Сохранено на диск';
+      } catch (e) {
+        setStatus('err', String(e));
+      }
+    }, 400);
+  }
+
+  async function triggerGitSync() {
+    if (!currentRepo) return;
+    const btn = document.getElementById('sync-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳ Sync...</span>';
+
+    try {
+      const commit = await invoke('git_sync', { repoPath: currentRepo });
+      await loadRepository(currentRepo);
+      setStatus('ok', `Синхронизировано (${commit.short_hash})`);
+    } catch (e) {
+      setStatus('err', String(e));
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>↻ Sync</span>';
+    }
+  }
+
+  function renderCommits(commits) {
+    const container = document.getElementById('commit-list');
+    container.innerHTML = '';
+
+    if (commits.length > 0) {
+      document.getElementById('last-commit-btn').innerText = `🕒 ${commits[0].message} (${commits[0].short_hash})`;
+    }
+
+    commits.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'commit-item';
+      div.innerHTML = `<div><span class="commit-hash">${c.short_hash}</span><strong>${c.message}</strong></div><div style="color:var(--text-muted);font-size:11px;margin-top:2px;">${c.date}</div>`;
+      div.onclick = () => checkoutCommit(c.hash);
+      container.appendChild(div);
+    });
+  }
+
+  async function checkoutCommit(hash) {
+    document.getElementById('commit-popover').classList.remove('open');
+    try {
+      await invoke('restore_commit', { repoPath: currentRepo, hash });
+      await loadRepository(currentRepo);
+      if (currentFilePath) {
+        const content = await invoke('read_file', { filePath: currentFilePath });
+        document.getElementById('code-area').value = content;
+      }
+      setStatus('warn', `Подгружен коммит ${hash.slice(0, 7)} для редактирования`);
+    } catch (e) {
+      setStatus('err', String(e));
+    }
+  }
+
+  function toggleCommitList() {
+    document.getElementById('commit-popover').classList.toggle('open');
+  }
+
+  function setStatus(type, text) {
+    const dotClass = type === 'ok' ? 'dot-ok' : type === 'warn' ? 'dot-warn' : 'dot-err';
+    document.getElementById('git-status-text').innerHTML = `<span class="dot ${dotClass}"></span>${text}`;
+  }
+</script>
+</body>
+</html>
