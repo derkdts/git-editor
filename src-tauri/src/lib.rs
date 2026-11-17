@@ -12,6 +12,7 @@ pub fn run() {
             fs_ops::clone_repo,
             fs_ops::create_file,
             fs_ops::read_file,
+            fs_ops::read_file_at_commit,
             fs_ops::save_file,
             git_ops::get_commits,
             git_ops::restore_commit,

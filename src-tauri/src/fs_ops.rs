@@ -77,15 +77,42 @@ pub async fn open_repo(repo_path: String) -> Result<RepoState, String> {
 
         let commits = get_commits_data(&repo_path).unwrap_or_default();
         let branch = get_current_branch(&repo_path);
-        Ok(RepoState {
-            repo_path,
-            branch,
-            files,
-            commits,
-        })
+        Ok(RepoState { repo_path, branch, files, commits })
     })
     .await
     .map_err(|e| format!("Ошибка фоновой задачи репозитория: {}", e))?
+}
+
+/// Read a historical file version without checking out the commit or changing
+/// the working tree. This keeps the user's current file and Git state intact.
+#[tauri::command]
+pub async fn read_file_at_commit(
+    repo_path: String,
+    file_path: String,
+    hash: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if hash.len() < 7 || hash.len() > 40 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err("Некорректный идентификатор коммита".to_string());
+        }
+        let repo = Path::new(&repo_path)
+            .canonicalize()
+            .map_err(|e| format!("Не удалось определить путь репозитория: {}", e))?;
+        let file = Path::new(&file_path)
+            .canonicalize()
+            .map_err(|e| format!("Не удалось определить путь файла: {}", e))?;
+        let relative = file
+            .strip_prefix(&repo)
+            .map_err(|_| "Файл находится за пределами репозитория".to_string())?;
+        if relative.components().any(|component| !matches!(component, Component::Normal(_))) {
+            return Err("Некорректный путь файла".to_string());
+        }
+        let git_path = relative.to_string_lossy().replace('\\', "/");
+        run_git(&repo.to_string_lossy(), &["cat-file", "blob", &format!("{}:{}", hash, git_path)])
+            .map_err(|e| format!("Не удалось прочитать версию файла из коммита: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Ошибка фоновой задачи истории: {}", e))?
 }
 
 #[tauri::command]
