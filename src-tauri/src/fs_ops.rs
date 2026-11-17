@@ -1,8 +1,23 @@
-use crate::git_ops::{get_commits, get_current_branch, get_status_map};
+use crate::git_ops::{get_commits, get_current_branch, get_status_map, run_git};
 use crate::models::{FileEntry, RepoState};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path};
+
+#[tauri::command]
+pub fn init_repo(repo_path: String) -> Result<(), String> {
+    let path = Path::new(&repo_path);
+    if !path.is_dir() {
+        return Err("Выбранный путь не является папкой".to_string());
+    }
+    if path.join(".git").exists() {
+        return Err("В этой папке Git-репозиторий уже существует".to_string());
+    }
+
+    run_git(&repo_path, &["init"]).map(|_| ()).map_err(|e| {
+        format!("Не удалось инициализировать Git-репозиторий: {}", e)
+    })
+}
 
 #[tauri::command]
 pub fn open_repo(repo_path: String) -> Result<RepoState, String> {
@@ -52,7 +67,7 @@ pub fn create_file(repo_path: String, file_name: String) -> Result<String, Strin
         || !matches!(relative_path.components().next(), Some(Component::Normal(_)))
         || name.chars().any(char::is_control)
     {
-        return Err("Укажите имя файла без пути и без управляющих символов".to_string());
+        return Err("Введите имя файла без пути и без управляющих символов".to_string());
     }
 
     let repo = Path::new(&repo_path);
