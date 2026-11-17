@@ -3,6 +3,8 @@ use chrono::Local;
 use std::collections::HashMap;
 use std::process::Command;
 
+/// Run Git without opening a console window on Windows. The command is always
+/// run against the explicitly selected local repository directory.
 pub fn run_git(dir: &str, args: &[&str]) -> Result<String, String> {
     let mut command = Command::new("git");
     command
@@ -10,7 +12,6 @@ pub fn run_git(dir: &str, args: &[&str]) -> Result<String, String> {
         .current_dir(dir)
         .env("GIT_TERMINAL_PROMPT", "0");
 
-    // Avoid a console window flashing for each Git command on Windows.
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
@@ -24,12 +25,9 @@ pub fn run_git(dir: &str, args: &[&str]) -> Result<String, String> {
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
-        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        Err(if err.is_empty() {
-            String::from_utf8_lossy(&output.stdout).trim().to_string()
-        } else {
-            err
-        })
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Err(if stderr.is_empty() { stdout } else { stderr })
     }
 }
 
@@ -56,7 +54,12 @@ pub fn get_status_map(dir: &str) -> HashMap<String, String> {
     map
 }
 
+/// Return an empty history for a newly initialized repository without commits.
 pub fn get_commits_data(repo_path: &str) -> Result<Vec<CommitItem>, String> {
+    if run_git(repo_path, &["rev-parse", "--verify", "HEAD"]).is_err() {
+        return Ok(Vec::new());
+    }
+
     let raw = run_git(
         repo_path,
         &[
@@ -68,18 +71,18 @@ pub fn get_commits_data(repo_path: &str) -> Result<Vec<CommitItem>, String> {
         ],
     )?;
 
-    let mut commits = Vec::new();
-    for line in raw.lines() {
-        let parts: Vec<&str> = line.splitn(4, '|').collect();
-        if parts.len() == 4 {
-            commits.push(CommitItem {
+    let commits = raw
+        .lines()
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.splitn(4, '|').collect();
+            (parts.len() == 4).then(|| CommitItem {
                 hash: parts[0].to_string(),
                 short_hash: parts[1].to_string(),
                 date: parts[2].to_string(),
                 message: parts[3].to_string(),
-            });
-        }
-    }
+            })
+        })
+        .collect();
     Ok(commits)
 }
 
@@ -87,7 +90,7 @@ fn latest_commit(dir: &str) -> Result<CommitItem, String> {
     get_commits_data(dir)?
         .into_iter()
         .next()
-        .ok_or_else(|| "Изменения сохранены локально, но коммитов пока нет".to_string())
+        .ok_or_else(|| "Локальный репозиторий пока не содержит коммитов".to_string())
 }
 
 #[tauri::command]
@@ -107,8 +110,8 @@ pub async fn restore_commit(repo_path: String, hash: String) -> Result<(), Strin
     .map_err(|e| format!("Ошибка фоновой задачи Git: {}", e))?
 }
 
-/// Save changes as a local commit. This command deliberately does not pull or push,
-/// so it works for repositories initialized locally and never requires an upstream.
+/// Save changes as a local commit only. This intentionally does not fetch,
+/// pull, or push, so no remote or upstream tracking branch is required.
 #[tauri::command]
 pub async fn git_sync(repo_path: String) -> Result<CommitItem, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -116,10 +119,20 @@ pub async fn git_sync(repo_path: String) -> Result<CommitItem, String> {
         let status = run_git(&repo_path, &["status", "--porcelain"])?;
         if !status.is_empty() {
             let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-            let commit_msg = format!("Local save: {}", now);
+            let message = format!("Local save: {}", now);
             run_git(
                 &repo_path,
-                &["-c", "core.quotepath=false", "commit", "-m", &commit_msg],
+                &[
+                    "-c",
+                    "user.name=Git Editor",
+                    "-c",
+                    "user.email=git-editor@localhost",
+                    "-c",
+                    "core.quotepath=false",
+                    "commit",
+                    "-m",
+                    &message,
+                ],
             )?;
         }
         latest_commit(&repo_path)

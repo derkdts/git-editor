@@ -1,129 +1,148 @@
-use crate::git_ops::{get_commits, get_current_branch, get_status_map, run_git};
+use crate::git_ops::{get_commits_data, get_current_branch, get_status_map, run_git};
 use crate::models::{FileEntry, RepoState};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path};
 
 #[tauri::command]
-pub fn init_repo(repo_path: String) -> Result<(), String> {
-    let path = Path::new(&repo_path);
-    if !path.is_dir() {
-        return Err("Выбранный путь не является папкой".to_string());
-    }
-    if path.join(".git").exists() {
-        return Err("В этой папке Git-репозиторий уже существует".to_string());
-    }
-
-    run_git(&repo_path, &["init"])
-        .map(|_| ())
-        .map_err(|e| format!("Не удалось инициализировать Git-репозиторий: {}", e))
-}
-
-#[tauri::command]
-pub fn clone_repo(repo_url: String, destination_path: String) -> Result<(), String> {
-    let url = repo_url.trim();
-    if url.is_empty() || url.chars().any(char::is_control) {
-        return Err("Укажите корректный URL Git-репозитория".to_string());
-    }
-    if !(url.starts_with("https://")
-        || url.starts_with("http://")
-        || url.starts_with("ssh://")
-        || url.starts_with("git@"))
-    {
-        return Err("Поддерживаются URL формата HTTPS, HTTP, SSH или git@host:path".to_string());
-    }
-
-    let destination = Path::new(&destination_path);
-    if !destination.is_dir() {
-        return Err("Папка назначения не существует".to_string());
-    }
-    let mut entries = fs::read_dir(destination).map_err(|e| e.to_string())?;
-    if entries.next().is_some() {
-        return Err("Для клонирования выберите пустую папку".to_string());
-    }
-
-    run_git(&destination_path, &["clone", "--", url, "."])
-        .map(|_| ())
-        .map_err(|e| format!("Не удалось клонировать репозиторий: {}", e))
-}
-
-#[tauri::command]
-pub fn open_repo(repo_path: String) -> Result<RepoState, String> {
-    let path = Path::new(&repo_path);
-    if !path.join(".git").exists() {
-        return Err("В выбранной папке не инициализирован Git-репозиторий".to_string());
-    }
-
-    let status_map = get_status_map(&repo_path);
-    let mut files = Vec::new();
-    let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
-    for entry in entries.flatten() {
-        let file_name = entry.file_name().to_string_lossy().to_string();
-        if file_name.starts_with('.') || !entry.path().is_file() {
-            continue;
+pub async fn init_repo(repo_path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = Path::new(&repo_path);
+        if !path.is_dir() {
+            return Err("Выбранный путь не является папкой".to_string());
         }
-        let git_status = status_map.get(&file_name).cloned();
-        files.push(FileEntry {
-            name: file_name,
-            path: entry.path().to_string_lossy().to_string(),
-            git_status,
-        });
-    }
-
-    files.sort_by(|a, b| a.name.cmp(&b.name));
-    let commits = get_commits(repo_path.clone()).unwrap_or_default();
-    let branch = get_current_branch(&repo_path);
-
-    Ok(RepoState {
-        repo_path,
-        branch,
-        files,
-        commits,
+        if path.join(".git").exists() {
+            return Err("В этой папке Git-репозиторий уже существует".to_string());
+        }
+        run_git(&repo_path, &["init"]).map(|_| ())
     })
+    .await
+    .map_err(|e| format!("Ошибка фоновой задачи Git: {}", e))?
 }
 
 #[tauri::command]
-pub fn create_file(repo_path: String, file_name: String) -> Result<String, String> {
-    let name = file_name.trim();
-    let relative_path = Path::new(name);
-    if name.is_empty()
-        || name.starts_with('.')
-        || relative_path.components().count() != 1
-        || !matches!(relative_path.components().next(), Some(Component::Normal(_)))
-        || name.chars().any(char::is_control)
-    {
-        return Err("Введите имя файла без пути и без управляющих символов".to_string());
-    }
+pub async fn clone_repo(repo_url: String, destination_path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let url = repo_url.trim();
+        if url.is_empty() || url.chars().any(char::is_control) {
+            return Err("Укажите корректный URL Git-репозитория".to_string());
+        }
+        if !(url.starts_with("https://")
+            || url.starts_with("http://")
+            || url.starts_with("ssh://")
+            || url.starts_with("git@"))
+        {
+            return Err("Поддерживаются URL HTTPS, HTTP, SSH и git@host:path".to_string());
+        }
 
-    let repo = Path::new(&repo_path);
-    if !repo.join(".git").exists() {
-        return Err("В выбранной папке не инициализирован Git-репозиторий".to_string());
-    }
+        let destination = Path::new(&destination_path);
+        if !destination.is_dir() {
+            return Err("Папка назначения не существует".to_string());
+        }
+        let mut entries = fs::read_dir(destination).map_err(|e| e.to_string())?;
+        if entries.next().is_some() {
+            return Err("Для клонирования выберите пустую папку".to_string());
+        }
 
-    let path = repo.join(relative_path);
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::AlreadyExists {
-                format!("Файл «{}» уже существует", name)
-            } else {
-                format!("Не удалось создать файл: {}", e)
+        run_git(&destination_path, &["clone", "--", url, "."])
+            .map(|_| ())
+            .map_err(|e| format!("Не удалось клонировать репозиторий: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Ошибка фоновой задачи Git: {}", e))?
+}
+
+#[tauri::command]
+pub async fn open_repo(repo_path: String) -> Result<RepoState, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = Path::new(&repo_path);
+        if !path.join(".git").exists() {
+            return Err("В выбранной папке не инициализирован Git-репозиторий".to_string());
+        }
+
+        let status_map = get_status_map(&repo_path);
+        let mut files = Vec::new();
+        for entry in fs::read_dir(path).map_err(|e| e.to_string())?.flatten() {
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            if file_name.starts_with('.') || !entry.path().is_file() {
+                continue;
             }
-        })?;
-    file.write_all(b"")
-        .map_err(|e| format!("Не удалось создать файл: {}", e))?;
+            files.push(FileEntry {
+                git_status: status_map.get(&file_name).cloned(),
+                name: file_name,
+                path: entry.path().to_string_lossy().to_string(),
+            });
+        }
+        files.sort_by(|a, b| a.name.cmp(&b.name));
 
-    Ok(path.to_string_lossy().to_string())
+        let commits = get_commits_data(&repo_path).unwrap_or_default();
+        let branch = get_current_branch(&repo_path);
+        Ok(RepoState {
+            repo_path,
+            branch,
+            files,
+            commits,
+        })
+    })
+    .await
+    .map_err(|e| format!("Ошибка фоновой задачи репозитория: {}", e))?
 }
 
 #[tauri::command]
-pub fn read_file(file_path: String) -> Result<String, String> {
-    fs::read_to_string(&file_path).map_err(|e| format!("Не удалось прочитать файл: {}", e))
+pub async fn create_file(repo_path: String, file_name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let name = file_name.trim();
+        let relative_path = Path::new(name);
+        if name.is_empty()
+            || name.starts_with('.')
+            || relative_path.components().count() != 1
+            || !matches!(relative_path.components().next(), Some(Component::Normal(_)))
+            || name.chars().any(char::is_control)
+        {
+            return Err("Введите имя файла без пути и без управляющих символов".to_string());
+        }
+
+        let repo = Path::new(&repo_path);
+        if !repo.join(".git").exists() {
+            return Err("В выбранной папке не инициализирован Git-репозиторий".to_string());
+        }
+
+        let path = repo.join(relative_path);
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::AlreadyExists {
+                    format!("Файл «{}» уже существует", name)
+                } else {
+                    format!("Не удалось создать файл: {}", e)
+                }
+            })?;
+        file.write_all(b"")
+            .map_err(|e| format!("Не удалось создать файл: {}", e))?;
+        Ok(path.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Ошибка фоновой задачи файла: {}", e))?
 }
 
 #[tauri::command]
-pub fn save_file(file_path: String, content: String) -> Result<(), String> {
-    fs::write(&file_path, content).map_err(|e| format!("Не удалось сохранить файл: {}", e))
+pub async fn read_file(file_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fs::read_to_string(&file_path)
+            .map_err(|e| format!("Не удалось прочитать файл: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Ошибка фоновой задачи файла: {}", e))?
+}
+
+#[tauri::command]
+pub async fn save_file(file_path: String, content: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fs::write(&file_path, content)
+            .map_err(|e| format!("Не удалось сохранить файл: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Ошибка фоновой задачи файла: {}", e))?
 }
