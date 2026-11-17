@@ -10,7 +10,7 @@ pub fn run_git(dir: &str, args: &[&str]) -> Result<String, String> {
         .current_dir(dir)
         .env("GIT_TERMINAL_PROMPT", "0");
 
-    // Prevent a console window from flashing for every Git command on Windows.
+    // Avoid a console window flashing for each Git command on Windows.
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
@@ -42,7 +42,7 @@ pub fn get_current_branch(dir: &str) -> String {
 
 pub fn get_status_map(dir: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
-    if let Ok(output) = run_git(dir, &["status", "--porcelain"]) {
+    if let Ok(output) = run_git(dir, &["status", "--porcelain"] ) {
         for line in output.lines() {
             if line.len() < 4 {
                 continue;
@@ -56,32 +56,9 @@ pub fn get_status_map(dir: &str) -> HashMap<String, String> {
     map
 }
 
-pub fn latest_commit(dir: &str) -> Result<CommitItem, String> {
+pub fn get_commits_data(repo_path: &str) -> Result<Vec<CommitItem>, String> {
     let raw = run_git(
-        dir,
-        &[
-            "log",
-            "-1",
-            "--pretty=format:%H|%h|%ad|%s",
-            "--date=format:%Y-%m-%d %H:%M",
-        ],
-    )?;
-    let parts: Vec<&str> = raw.splitn(4, '|').collect();
-    if parts.len() != 4 {
-        return Err("В репозитории пока нет коммитов".to_string());
-    }
-    Ok(CommitItem {
-        hash: parts[0].to_string(),
-        short_hash: parts[1].to_string(),
-        date: parts[2].to_string(),
-        message: parts[3].to_string(),
-    })
-}
-
-#[tauri::command]
-pub fn get_commits(repo_path: String) -> Result<Vec<CommitItem>, String> {
-    let raw = run_git(
-        &repo_path,
+        repo_path,
         &[
             "log",
             "-n",
@@ -106,41 +83,47 @@ pub fn get_commits(repo_path: String) -> Result<Vec<CommitItem>, String> {
     Ok(commits)
 }
 
-#[tauri::command]
-pub fn restore_commit(repo_path: String, hash: String) -> Result<(), String> {
-    run_git(&repo_path, &["checkout", &hash, "--", "."])?;
-    Ok(())
+fn latest_commit(dir: &str) -> Result<CommitItem, String> {
+    get_commits_data(dir)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "Изменения сохранены локально, но коммитов пока нет".to_string())
 }
 
 #[tauri::command]
+pub async fn get_commits(repo_path: String) -> Result<Vec<CommitItem>, String> {
+    tauri::async_runtime::spawn_blocking(move || get_commits_data(&repo_path))
+        .await
+        .map_err(|e| format!("Ошибка фоновой задачи Git: {}", e))?
+}
+
+#[tauri::command]
+pub async fn restore_commit(repo_path: String, hash: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        run_git(&repo_path, &["checkout", &hash, "--", "."])?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Ошибка фоновой задачи Git: {}", e))?
+}
+
+/// Save changes as a local commit. This command deliberately does not pull or push,
+/// so it works for repositories initialized locally and never requires an upstream.
+#[tauri::command]
 pub async fn git_sync(repo_path: String) -> Result<CommitItem, String> {
-    // Always save changes to the local repository first. No remote is required.
-    run_git(&repo_path, &["add", "--all"])?;
-    let status = run_git(&repo_path, &["status", "--porcelain"])?;
-    if !status.is_empty() {
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let commit_msg = format!("Auto-sync: {}", now);
-        run_git(&repo_path, &["-c", "core.quotepath=false", "commit", "-m", &commit_msg])?;
-    }
-
-    let commit = latest_commit(&repo_path)
-        .map_err(|_| "Изменения сохранены локально; пока нет коммитов для синхронизации".to_string())?;
-
-    // Only contact a remote when this local branch explicitly tracks one.
-    // Freshly initialized local repositories therefore work without upstream errors.
-    let has_upstream = run_git(
-        &repo_path,
-        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
-    )
-    .is_ok();
-
-    if has_upstream {
-        run_git(&repo_path, &["pull", "--rebase", "--autostash"])
-            .map_err(|e| format!("Локальный коммит сохранён, ошибка получения изменений: {}", e))?;
-        run_git(&repo_path, &["push"])
-            .map_err(|e| format!("Локальный коммит сохранён, ошибка отправки: {}", e))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        run_git(&repo_path, &["add", "--all"])?;
+        let status = run_git(&repo_path, &["status", "--porcelain"])?;
+        if !status.is_empty() {
+            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let commit_msg = format!("Local save: {}", now);
+            run_git(
+                &repo_path,
+                &["-c", "core.quotepath=false", "commit", "-m", &commit_msg],
+            )?;
+        }
         latest_commit(&repo_path)
-    } else {
-        Ok(commit)
-    }
+    })
+    .await
+    .map_err(|e| format!("Ошибка фоновой задачи Git: {}", e))?
 }
