@@ -37,67 +37,33 @@
     width: 240px; min-width: 180px; background: var(--bg-sidebar);
     border-right: 1px solid var(--border); display: flex; flex-direction: column;
   }
-  .sidebar-section-title {
-    padding: 12px 14px 8px; font-size: 11px; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--text-muted);
-  }
+  .sidebar-section-title { padding: 12px 14px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
   .file-tree { list-style: none; padding: 0 8px; flex: 1; overflow-y: auto; }
-  .file-item {
-    padding: 7px 10px; border-radius: 6px; font-size: 13px; display: flex;
-    align-items: center; justify-content: space-between; cursor: pointer; margin-bottom: 2px;
-  }
+  .file-item { padding: 7px 10px; border-radius: 6px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; margin-bottom: 2px; }
   .file-item:hover { background: var(--bg-hover); }
   .file-item.active { background: #27272a; color: #fff; font-weight: 500; }
   .git-badge { font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 4px; }
   .badge-m { color: var(--git-mod); background: rgba(234,179,8,.15); }
   .badge-u { color: var(--git-new); background: rgba(34,197,94,.15); }
   .editor-container { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-main); }
-  .editor-tabs {
-    height: 36px; flex: 0 0 36px; background: var(--bg-header);
-    border-bottom: 1px solid var(--border); display: flex; align-items: center;
-    padding: 0 12px; font-size: 13px; color: var(--text-muted);
-  }
-  .tab-active {
-    color: var(--text-main); border-bottom: 2px solid var(--accent); height: 100%;
-    display: flex; align-items: center; padding: 0 8px; gap: 8px;
-  }
-  #code-area {
-    flex: 1; min-height: 0; width: 100%; background: transparent; border: none;
-    color: var(--text-main); font-family: "JetBrains Mono", "Fira Code", monospace;
-    font-size: 14px; line-height: 1.6; padding: 16px; resize: none; user-select: text;
-  }
+  .editor-tabs { height: 36px; flex: 0 0 36px; background: var(--bg-header); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 12px; font-size: 13px; color: var(--text-muted); }
+  .tab-active { color: var(--text-main); border-bottom: 2px solid var(--accent); height: 100%; display: flex; align-items: center; padding: 0 8px; gap: 8px; }
+  #code-area { flex: 1; min-height: 0; width: 100%; background: transparent; border: none; color: var(--text-main); font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 14px; line-height: 1.6; padding: 16px; resize: none; user-select: text; }
   #code-area:focus { outline: none; }
-  .statusbar {
-    min-height: 30px; background: var(--bg-sidebar); border-top: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 0 12px; font-size: 12px; color: var(--text-muted); position: relative;
-  }
+  .statusbar { min-height: 30px; background: var(--bg-sidebar); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; font-size: 12px; color: var(--text-muted); position: relative; }
   .status-left, .status-right { display: flex; align-items: center; gap: 14px; min-width: 0; }
   #git-status-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: 0 0 8px; }
-  .dot-ok { background: var(--git-new); } .dot-warn { background: var(--git-mod); }
-  .dot-err { background: var(--git-err); }
+  .dot-ok { background: var(--git-new); } .dot-warn { background: var(--git-mod); } .dot-err { background: var(--git-err); }
   .commit-trigger { cursor: pointer; padding: 2px 6px; border-radius: 4px; color: var(--text-main); white-space: nowrap; }
   .commit-trigger:hover { background: var(--bg-hover); }
-  .commit-popover {
-    position: absolute; bottom: 36px; left: 12px; width: min(420px, 90vw); max-height: 300px;
-    overflow-y: auto; background: var(--bg-header); border: 1px solid var(--border);
-    border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,.5); display: none; z-index: 100;
-  }
+  .commit-popover { position: absolute; bottom: 36px; left: 12px; width: min(420px, 90vw); max-height: 300px; overflow-y: auto; background: var(--bg-header); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,.5); display: none; z-index: 100; }
   .commit-popover.open { display: block; }
-  .commit-popover-header {
-    padding: 8px 12px; font-size: 11px; text-transform: uppercase;
-    color: var(--text-muted); border-bottom: 1px solid var(--border);
-  }
+  .commit-popover-header { padding: 8px 12px; font-size: 11px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); }
   .commit-item { padding: 8px 12px; border-bottom: 1px solid #26262a; cursor: pointer; font-size: 12px; }
   .commit-item:hover { background: var(--bg-hover); }
   .commit-hash { color: var(--accent); font-family: monospace; margin-right: 6px; }
-  @media (max-width: 700px) {
-    .titlebar { flex-wrap: wrap; }
-    .titlebar-actions { flex-wrap: wrap; justify-content: flex-end; }
-    .sidebar { width: 180px; min-width: 150px; }
-    .toolbar-button { padding: 6px 8px; }
-  }
+  @media (max-width: 700px) { .titlebar { flex-wrap: wrap; } .titlebar-actions { flex-wrap: wrap; justify-content: flex-end; } .sidebar { width: 180px; min-width: 150px; } .toolbar-button { padding: 6px 8px; } }
 </style>
 </head>
 <body>
@@ -107,7 +73,7 @@
     <div class="titlebar-actions">
       <button class="toolbar-button" id="clone-btn" onclick="cloneRepository()">⤓ Клонировать</button>
       <button class="toolbar-button" id="new-file-btn" onclick="createNewFile()" disabled>＋ Новый файл</button>
-      <button class="toolbar-button primary" id="sync-btn" onclick="triggerGitSync()" disabled>💾 Сохранить локально</button>
+      <button class="toolbar-button primary" id="sync-btn" onclick="saveChanges()" disabled>💾 Сохранить локально</button>
     </div>
   </div>
 
@@ -142,13 +108,20 @@
   const codeArea = document.getElementById('code-area');
   let currentRepo = null;
   let currentFilePath = null;
-  let saveTimer = null;
-  let saveQueue = Promise.resolve();
+  let originalContent = '';
+  let hasUnsavedChanges = false;
   let syncInProgress = false;
   let repoLoadToken = 0;
 
+  async function confirmDiscardChanges() {
+    if (!hasUnsavedChanges) return true;
+    const discard = confirm('Есть несохранённые изменения. Отбросить их? Нажмите «Отмена», чтобы вернуться и сохранить кнопкой.');
+    return discard;
+  }
+
   async function chooseRepo() {
     try {
+      if (!(await confirmDiscardChanges())) return;
       const selected = await open({ directory: true, multiple: false });
       if (!selected) return;
       try {
@@ -157,7 +130,10 @@
         if (!confirm('В папке нет Git-репозитория. Инициализировать Git здесь?')) return;
         await invoke('init_repo', { repoPath: selected });
       }
+      currentRepo = null;
       currentFilePath = null;
+      originalContent = '';
+      hasUnsavedChanges = false;
       codeArea.value = '';
       codeArea.disabled = true;
       await loadRepository(selected);
@@ -167,19 +143,24 @@
   }
 
   async function cloneRepository() {
-    const repoUrl = prompt('Введите URL Git-репозитория (HTTPS или SSH):');
-    if (!repoUrl || !repoUrl.trim()) return;
     try {
+      if (!(await confirmDiscardChanges())) return;
+      const repoUrl = prompt('Введите URL Git-репозитория (HTTPS или SSH):');
+      if (!repoUrl || !repoUrl.trim()) return;
       const destination = await open({ directory: true, multiple: false });
       if (!destination) return;
       setStatus('warn', 'Клонирование выполняется в фоне…');
-      document.getElementById('clone-btn').disabled = true;
+      const button = document.getElementById('clone-btn');
+      button.disabled = true;
       await invoke('clone_repo', { repoUrl: repoUrl.trim(), destinationPath: destination });
+      currentRepo = null;
       currentFilePath = null;
+      originalContent = '';
+      hasUnsavedChanges = false;
       codeArea.value = '';
       codeArea.disabled = true;
       await loadRepository(destination);
-      setStatus('ok', 'Репозиторий клонирован; изменения сохраняются локально');
+      setStatus('ok', 'Репозиторий клонирован; изменения сохраняются по кнопке');
     } catch (e) {
       setStatus('err', String(e));
     } finally {
@@ -229,27 +210,13 @@
     }
   }
 
-  async function queueSave(filePath, content) {
-    saveQueue = saveQueue.catch(() => {}).then(() => invoke('save_file', { filePath, content }));
-    return saveQueue;
-  }
-
-  async function flushPendingSave() {
-    clearTimeout(saveTimer);
-    saveTimer = null;
-    if (!currentFilePath || codeArea.disabled) return saveQueue;
-    const path = currentFilePath;
-    const content = codeArea.value;
-    document.getElementById('save-state').textContent = 'Сохранение…';
-    await queueSave(path, content);
-    if (currentFilePath === path) document.getElementById('save-state').textContent = 'Сохранено локально';
-  }
-
   async function selectFile(file) {
+    if (file.path !== currentFilePath && !(await confirmDiscardChanges())) return;
     try {
-      await flushPendingSave();
       const content = await invoke('read_file', { filePath: file.path });
       currentFilePath = file.path;
+      originalContent = content;
+      hasUnsavedChanges = false;
       document.getElementById('current-tab-name').textContent = file.name;
       codeArea.disabled = false;
       codeArea.value = content;
@@ -263,52 +230,47 @@
     }
   }
 
+  codeArea.addEventListener('input', () => {
+    if (!currentFilePath) return;
+    hasUnsavedChanges = codeArea.value !== originalContent;
+    document.getElementById('save-state').textContent = hasUnsavedChanges ? 'Несохранённые изменения' : 'Сохранено';
+    setStatus(hasUnsavedChanges ? 'warn' : 'ok', hasUnsavedChanges ? 'Изменения не сохранены — нажмите кнопку' : 'Нет несохранённых изменений');
+  });
+
   async function createNewFile() {
     if (!currentRepo) return;
+    if (!(await confirmDiscardChanges())) return;
     const fileName = prompt('Введите имя файла:', 'new-file.md');
     if (!fileName || !fileName.trim()) return;
     try {
       const createdPath = await invoke('create_file', { repoPath: currentRepo, fileName: fileName.trim() });
       await loadRepository(currentRepo, { selectFirst: false });
       await selectFile({ name: fileName.trim(), path: createdPath });
-      setStatus('ok', 'Файл создан в локальном репозитории');
+      setStatus('ok', 'Файл создан; изменения сохраняются по кнопке');
     } catch (e) {
       setStatus('err', String(e));
     }
   }
 
-  codeArea.addEventListener('input', () => {
-    if (!currentFilePath) return;
-    document.getElementById('save-state').textContent = 'Есть несохранённые изменения';
-    setStatus('warn', 'Изменения будут сохранены локально');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(async () => {
-      const path = currentFilePath;
-      const content = codeArea.value;
-      try {
-        await queueSave(path, content);
-        if (currentFilePath === path && codeArea.value === content) {
-          document.getElementById('save-state').textContent = 'Сохранено локально';
-          setStatus('ok', 'Файл сохранён локально');
-        }
-      } catch (e) {
-        setStatus('err', String(e));
-      }
-    }, 350);
-  });
-
-  async function triggerGitSync() {
+  async function saveChanges() {
     if (!currentRepo || syncInProgress) return;
     syncInProgress = true;
     const button = document.getElementById('sync-btn');
     button.disabled = true;
     button.textContent = '⏳ Сохранение…';
-    setStatus('warn', 'Сохранение коммита в локальный Git…');
+    setStatus('warn', 'Сохранение изменений в локальный Git…');
     try {
-      await flushPendingSave();
+      if (hasUnsavedChanges && currentFilePath) {
+        await invoke('save_file', { filePath: currentFilePath, content: codeArea.value });
+        originalContent = codeArea.value;
+        hasUnsavedChanges = false;
+      }
       const commit = await invoke('git_sync', { repoPath: currentRepo });
-      await loadRepository(currentRepo, { selectFirst: false });
-      setStatus('ok', `Сохранено только локально (${commit.short_hash})`);
+      const state = await invoke('open_repo', { repoPath: currentRepo });
+      renderFiles(state.files);
+      renderCommits(state.commits);
+      document.getElementById('save-state').textContent = 'Сохранено локально';
+      setStatus('ok', `Сохранено в локальную историю (${commit.short_hash})`);
     } catch (e) {
       setStatus('err', String(e));
     } finally {
@@ -322,9 +284,7 @@
     const container = document.getElementById('commit-list');
     container.replaceChildren();
     const trigger = document.getElementById('last-commit-btn');
-    trigger.textContent = commits.length
-      ? `🕒 ${commits[0].message} (${commits[0].short_hash})`
-      : '🕒 История пуста';
+    trigger.textContent = commits.length ? `🕒 ${commits[0].message} (${commits[0].short_hash})` : '🕒 История пуста';
     for (const commit of commits) {
       const item = document.createElement('div');
       item.className = 'commit-item';
@@ -345,16 +305,19 @@
   }
 
   async function checkoutCommit(hash) {
+    if (!(await confirmDiscardChanges())) return;
     document.getElementById('commit-popover').classList.remove('open');
     try {
-      await flushPendingSave();
       await invoke('restore_commit', { repoPath: currentRepo, hash });
       const oldPath = currentFilePath;
+      currentFilePath = null;
+      originalContent = '';
+      hasUnsavedChanges = false;
       await loadRepository(currentRepo, { selectFirst: false });
-      const file = oldPath && (await invoke('open_repo', { repoPath: currentRepo })).files.find(f => f.path === oldPath);
+      const state = await invoke('open_repo', { repoPath: currentRepo });
+      const file = oldPath && state.files.find(f => f.path === oldPath);
       if (file) await selectFile(file);
       else {
-        currentFilePath = null;
         codeArea.value = '';
         codeArea.disabled = true;
         document.getElementById('current-tab-name').textContent = 'Файл не выбран';
