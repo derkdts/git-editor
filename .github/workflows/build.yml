@@ -73,6 +73,39 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Set application version from release tag
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.determine-version.outputs.version }}
+        run: |
+          APP_VERSION="${RELEASE_VERSION#v}"
+          export APP_VERSION
+
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const files = ['package.json', 'src-tauri/tauri.conf.json'];
+          for (const file of files) {
+            const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+            json.version = process.env.APP_VERSION;
+            fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
+          }
+
+          const cargoPath = 'src-tauri/Cargo.toml';
+          const cargo = fs.readFileSync(cargoPath, 'utf8');
+          const updated = cargo.replace(
+            /(^\[package\][\s\S]*?^version\s*=\s*)"[^"]+"/m,
+            `$1"${process.env.APP_VERSION}"`
+          );
+
+          if (updated === cargo) {
+            throw new Error('Could not update version in src-tauri/Cargo.toml');
+          }
+
+          fs.writeFileSync(cargoPath, updated);
+          console.log(`Application version set to ${process.env.APP_VERSION}`);
+          NODE
+
       - name: Install Linux dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
         shell: bash
