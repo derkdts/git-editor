@@ -25,12 +25,11 @@
   .git-badge { font-size:11px; font-weight:700; padding:1px 5px; border-radius:4px; }
   .badge-m { color:var(--git-mod); background:rgba(234,179,8,.15); } .badge-u { color:var(--git-new); background:rgba(34,197,94,.15); }
   .editor-container { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg-main); }
-  .editor-tabs { height:36px; flex:0 0 36px; background:var(--bg-header); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 12px; font-size:13px; color:var(--text-muted); }
+  .editor-tabs { height:36px; flex:0 0 36px; background:var(--bg-header); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; padding:0 12px; font-size:13px; color:var(--text-muted); }
   .tab-active { color:var(--text-main); border-bottom:2px solid var(--accent); height:100%; display:flex; align-items:center; padding:0 8px; gap:8px; }
-  #history-return { display:none; }
+  #comparison-tab { display:none; height:30px; }
   #code-area { flex:1; min-height:0; width:100%; background:transparent; border:none; color:var(--text-main); font-family:"JetBrains Mono","Fira Code",monospace; font-size:14px; line-height:1.6; padding:16px; resize:none; user-select:text; }
-  #code-area:focus { outline:none; }
-  #code-area[readonly] { opacity:.9; }
+  #code-area:focus { outline:none; } #code-area[readonly] { opacity:.9; }
   .statusbar { min-height:30px; background:var(--bg-sidebar); border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 12px; font-size:12px; color:var(--text-muted); position:relative; }
   .status-left,.status-right { display:flex; align-items:center; gap:14px; min-width:0; }
   #git-status-text { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -60,8 +59,9 @@
     <aside class="sidebar"><div class="sidebar-section-title">Файлы репозитория</div><ul class="file-tree" id="file-list"></ul></aside>
     <main class="editor-container">
       <div class="editor-tabs">
-        <div class="tab-active"><span id="current-tab-name">Файл не выбран</span></div>
-        <button class="toolbar-button" id="history-return" onclick="returnToCurrentVersion()">↩ Текущая версия</button>
+        <div class="tab-active" id="history-version-tab"><span id="current-tab-name">Файл не выбран</span></div>
+        <button class="toolbar-button" id="comparison-tab" onclick="showCurrentComparison()">Текущее состояние</button>
+        <button class="toolbar-button" id="history-return" onclick="returnToCurrentVersion()" style="display:none">↩ Вернуться</button>
       </div>
       <textarea id="code-area" placeholder="Откройте или инициализируйте папку Git и выберите файл..." disabled></textarea>
     </main>
@@ -87,7 +87,41 @@
     if (!hasUnsavedChanges) return true;
     return confirm('Есть несохранённые изменения. Отбросить их? Нажмите «Отмена», чтобы вернуться и сохранить кнопкой.');
   }
-
+  function setPreviewTab(active) {
+    document.getElementById('history-version-tab').classList.toggle('tab-active', active);
+    document.getElementById('comparison-tab').classList.toggle('tab-active', !active);
+  }
+  function showCurrentComparison() {
+    if (!historyPreview) return;
+    historyPreview.activeView = 'current';
+    codeArea.value = historyPreview.content;
+    codeArea.readOnly = true;
+    setPreviewTab(false);
+    document.getElementById('save-state').textContent = 'Текущее состояние (только просмотр)';
+    requestAnimationFrame(() => restoreEditorPosition(historyPreview));
+  }
+  function showHistoricalVersion() {
+    if (!historyPreview) return;
+    historyPreview.activeView = 'historical';
+    codeArea.value = historyPreview.historicalContent;
+    codeArea.readOnly = true;
+    setPreviewTab(true);
+    document.getElementById('save-state').textContent = 'Старая версия (только просмотр)';
+    requestAnimationFrame(() => restoreEditorPosition(historyPreview));
+  }
+  function restoreEditorPosition(snapshot) {
+    codeArea.scrollTop = Math.min(snapshot.scrollTop, Math.max(0, codeArea.scrollHeight - codeArea.clientHeight));
+    codeArea.scrollLeft = snapshot.scrollLeft;
+    const len = codeArea.value.length;
+    codeArea.setSelectionRange(Math.min(snapshot.selectionStart, len), Math.min(snapshot.selectionEnd, len));
+  }
+  function clearHistoryPreview() {
+    historyPreview = null;
+    codeArea.readOnly = false;
+    document.getElementById('comparison-tab').style.display = 'none';
+    document.getElementById('history-return').style.display = 'none';
+    setPreviewTab(true);
+  }
   async function chooseRepo() {
     try {
       if (!confirmDiscardChanges()) return;
@@ -104,7 +138,6 @@
       await loadRepository(selected);
     } catch (e) { setStatus('err', String(e)); }
   }
-
   async function cloneRepository() {
     try {
       if (!confirmDiscardChanges()) return;
@@ -123,7 +156,6 @@
     } catch (e) { setStatus('err', String(e)); }
     finally { document.getElementById('clone-btn').disabled = false; }
   }
-
   async function loadRepository(repoPath, options = {}) {
     const token = ++repoLoadToken;
     try {
@@ -139,7 +171,6 @@
       if (options.selectFirst !== false && state.files.length && !currentFilePath) await selectFile(state.files[0]);
     } catch (e) { if (token === repoLoadToken) setStatus('err', String(e)); throw e; }
   }
-
   function renderFiles(files) {
     const list = document.getElementById('file-list'); list.replaceChildren();
     for (const file of files) {
@@ -150,37 +181,20 @@
       list.appendChild(li);
     }
   }
-
-  function clearHistoryPreview() {
-    historyPreview = null;
-    codeArea.readOnly = false;
-    document.getElementById('history-return').style.display = 'none';
-  }
-
   function returnToCurrentVersion() {
     if (!historyPreview) return;
-    const snapshot = historyPreview;
-    historyPreview = null;
-    currentFilePath = snapshot.filePath;
-    originalContent = snapshot.originalContent;
-    hasUnsavedChanges = snapshot.hasUnsavedChanges;
-    codeArea.disabled = false;
-    codeArea.readOnly = false;
-    codeArea.value = snapshot.content;
+    const snapshot = historyPreview; historyPreview = null;
+    currentFilePath = snapshot.filePath; originalContent = snapshot.originalContent; hasUnsavedChanges = snapshot.hasUnsavedChanges;
+    codeArea.disabled = false; codeArea.readOnly = false; codeArea.value = snapshot.content;
     document.getElementById('current-tab-name').textContent = snapshot.fileName;
     document.getElementById('save-state').textContent = hasUnsavedChanges ? 'Несохранённые изменения' : 'Сохранено';
+    document.getElementById('comparison-tab').style.display = 'none';
     document.getElementById('history-return').style.display = 'none';
+    setPreviewTab(true);
     document.getElementById('sync-btn').disabled = !currentRepo || syncInProgress;
-    requestAnimationFrame(() => {
-      codeArea.scrollTop = snapshot.scrollTop;
-      codeArea.scrollLeft = snapshot.scrollLeft;
-      const start = Math.min(snapshot.selectionStart, codeArea.value.length);
-      const end = Math.min(snapshot.selectionEnd, codeArea.value.length);
-      codeArea.setSelectionRange(start, end);
-    });
+    requestAnimationFrame(() => restoreEditorPosition(snapshot));
     setStatus(hasUnsavedChanges ? 'warn' : 'ok', hasUnsavedChanges ? 'Текущая версия восстановлена; есть несохранённые изменения' : 'Текущая версия файла');
   }
-
   async function selectFile(file) {
     if (historyPreview) returnToCurrentVersion();
     if (file.path !== currentFilePath && !confirmDiscardChanges()) return;
@@ -191,24 +205,22 @@
       codeArea.disabled = false; codeArea.readOnly = false; codeArea.value = content;
       document.getElementById('save-state').textContent = 'Сохранено';
       document.getElementById('sync-btn').disabled = !currentRepo;
+      document.getElementById('comparison-tab').style.display = 'none';
       document.getElementById('history-return').style.display = 'none';
       if (currentRepo) { const state = await invoke('open_repo', { repoPath: currentRepo }); renderFiles(state.files); }
     } catch (e) { setStatus('err', String(e)); }
   }
-
   codeArea.addEventListener('input', () => {
     if (!currentFilePath || historyPreview) return;
     hasUnsavedChanges = codeArea.value !== originalContent;
     document.getElementById('save-state').textContent = hasUnsavedChanges ? 'Несохранённые изменения' : 'Сохранено';
     setStatus(hasUnsavedChanges ? 'warn' : 'ok', hasUnsavedChanges ? 'Изменения не сохранены — нажмите кнопку' : 'Нет несохранённых изменений');
   });
-
   async function createNewFile() {
     if (!currentRepo) return;
     if (historyPreview) returnToCurrentVersion();
     if (!confirmDiscardChanges()) return;
-    const fileName = prompt('Введите имя файла:', 'new-file.md');
-    if (!fileName || !fileName.trim()) return;
+    const fileName = prompt('Введите имя файла:', 'new-file.md'); if (!fileName || !fileName.trim()) return;
     try {
       const createdPath = await invoke('create_file', { repoPath: currentRepo, fileName: fileName.trim() });
       await loadRepository(currentRepo, { selectFirst: false });
@@ -216,87 +228,61 @@
       setStatus('ok', 'Файл создан; изменения сохраняются по кнопке');
     } catch (e) { setStatus('err', String(e)); }
   }
-
   async function saveChanges() {
     if (!currentRepo || syncInProgress || historyPreview) return;
-    syncInProgress = true;
-    const button = document.getElementById('sync-btn'); button.disabled = true; button.textContent = '⏳ Сохранение…';
+    syncInProgress = true; const button = document.getElementById('sync-btn'); button.disabled = true; button.textContent = '⏳ Сохранение…';
     setStatus('warn', 'Сохранение изменений в локальный Git…');
     try {
-      if (hasUnsavedChanges && currentFilePath) {
-        await invoke('save_file', { filePath: currentFilePath, content: codeArea.value });
-        originalContent = codeArea.value; hasUnsavedChanges = false;
-      }
+      if (hasUnsavedChanges && currentFilePath) { await invoke('save_file', { filePath: currentFilePath, content: codeArea.value }); originalContent = codeArea.value; hasUnsavedChanges = false; }
       const commit = await invoke('git_sync', { repoPath: currentRepo });
-      const state = await invoke('open_repo', { repoPath: currentRepo });
-      renderFiles(state.files); renderCommits(state.commits);
-      document.getElementById('save-state').textContent = 'Сохранено локально';
-      setStatus('ok', `Сохранено в локальную историю (${commit.short_hash})`);
+      const state = await invoke('open_repo', { repoPath: currentRepo }); renderFiles(state.files); renderCommits(state.commits);
+      document.getElementById('save-state').textContent = 'Сохранено локально'; setStatus('ok', `Сохранено в локальную историю (${commit.short_hash})`);
     } catch (e) { setStatus('err', String(e)); }
     finally { syncInProgress = false; button.disabled = !currentRepo || !!historyPreview; button.textContent = '💾 Сохранить локально'; }
   }
-
   async function previewCommit(hash) {
     if (!currentRepo || !currentFilePath) { setStatus('err', 'Сначала выберите файл для просмотра истории'); return; }
-    const wasPreview = !!historyPreview;
-    if (!historyPreview) {
-      historyPreview = {
-        filePath: currentFilePath,
-        fileName: document.getElementById('current-tab-name').textContent,
-        content: codeArea.value,
-        originalContent,
-        hasUnsavedChanges,
-        selectionStart: codeArea.selectionStart,
-        selectionEnd: codeArea.selectionEnd,
-        scrollTop: codeArea.scrollTop,
-        scrollLeft: codeArea.scrollLeft
-      };
-    }
+    const alreadyPreviewing = !!historyPreview;
+    if (!historyPreview) historyPreview = {
+      filePath: currentFilePath, fileName: document.getElementById('current-tab-name').textContent,
+      content: codeArea.value, originalContent, hasUnsavedChanges,
+      selectionStart: codeArea.selectionStart, selectionEnd: codeArea.selectionEnd,
+      scrollTop: codeArea.scrollTop, scrollLeft: codeArea.scrollLeft,
+      historicalContent: '', activeView: 'historical'
+    };
     setStatus('warn', 'Загрузка версии файла…');
     try {
-      const content = await invoke('read_file_at_commit', { repoPath: currentRepo, filePath: currentFilePath, hash });
-      codeArea.value = content;
-      codeArea.disabled = false;
-      codeArea.readOnly = true;
+      const content = await invoke('read_file_at_commit', { repoPath: currentRepo, filePath: historyPreview.filePath, hash });
+      historyPreview.historicalContent = content;
+      historyPreview.activeView = 'historical';
+      codeArea.value = content; codeArea.disabled = false; codeArea.readOnly = true;
       document.getElementById('current-tab-name').textContent = `${historyPreview.fileName} — ${hash.slice(0, 7)} (история)`;
+      const comparisonTab = document.getElementById('comparison-tab');
+      comparisonTab.textContent = 'Текущее состояние'; comparisonTab.style.display = 'inline-block';
       document.getElementById('history-return').style.display = 'inline-block';
       document.getElementById('sync-btn').disabled = true;
-      document.getElementById('save-state').textContent = 'Просмотр версии';
-      const position = historyPreview;
-      requestAnimationFrame(() => {
-        codeArea.scrollTop = Math.min(position.scrollTop, Math.max(0, codeArea.scrollHeight - codeArea.clientHeight));
-        codeArea.scrollLeft = position.scrollLeft;
-        const start = Math.min(position.selectionStart, content.length);
-        const end = Math.min(position.selectionEnd, content.length);
-        codeArea.setSelectionRange(start, end);
-      });
-      setStatus('ok', `Просмотр версии из коммита ${hash.slice(0, 7)}; рабочий файл не изменён`);
+      document.getElementById('save-state').textContent = 'Старая версия (только просмотр)';
+      setPreviewTab(true);
+      requestAnimationFrame(() => restoreEditorPosition(historyPreview));
+      setStatus('ok', `Просмотр версии ${hash.slice(0, 7)}; выберите «Текущее состояние» для сравнения`);
     } catch (e) {
-      if (!wasPreview) { historyPreview = null; }
+      if (!alreadyPreviewing) { historyPreview = null; document.getElementById('history-return').style.display = 'none'; }
       setStatus('err', String(e));
     }
   }
-
   function renderCommits(commits) {
     const container = document.getElementById('commit-list'); container.replaceChildren();
-    const trigger = document.getElementById('last-commit-btn');
-    trigger.textContent = commits.length ? `🕒 ${commits[0].message} (${commits[0].short_hash})` : '🕒 История пуста';
+    const trigger = document.getElementById('last-commit-btn'); trigger.textContent = commits.length ? `🕒 ${commits[0].message} (${commits[0].short_hash})` : '🕒 История пуста';
     for (const commit of commits) {
       const item = document.createElement('div'); item.className = 'commit-item';
-      const title = document.createElement('div'); const hash = document.createElement('span');
-      hash.className = 'commit-hash'; hash.textContent = commit.short_hash;
+      const title = document.createElement('div'); const hash = document.createElement('span'); hash.className = 'commit-hash'; hash.textContent = commit.short_hash;
       const message = document.createElement('strong'); message.textContent = commit.message; title.append(hash, message);
       const date = document.createElement('div'); date.style.cssText = 'color:var(--text-muted);font-size:11px;margin-top:2px'; date.textContent = commit.date;
       item.append(title, date); item.onclick = () => previewCommit(commit.hash); container.appendChild(item);
     }
   }
-
   function toggleCommitList() { document.getElementById('commit-popover').classList.toggle('open'); }
-  function setStatus(type, text) {
-    const dot = document.getElementById('status-dot');
-    dot.className = 'dot ' + (type === 'ok' ? 'dot-ok' : type === 'warn' ? 'dot-warn' : 'dot-err');
-    document.getElementById('git-status-text').textContent = text;
-  }
+  function setStatus(type, text) { const dot = document.getElementById('status-dot'); dot.className = 'dot ' + (type === 'ok' ? 'dot-ok' : type === 'warn' ? 'dot-warn' : 'dot-err'); document.getElementById('git-status-text').textContent = text; }
 </script>
 </body>
 </html>
