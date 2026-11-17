@@ -7,7 +7,48 @@ on:
   workflow_dispatch:
 
 jobs:
+  determine-version:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine next version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && -n "${GITHUB_REF_NAME}" ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest_tag=$(git tag --list 'v*' --sort=-version:refname | head -n 1 || true)
+
+          if [[ -z "${latest_tag}" ]]; then
+            next_version="v0.1.0"
+          else
+            version="${latest_tag#v}"
+            IFS='.' read -r major minor patch <<< "${version}"
+
+            if (( minor < 9 )); then
+              minor=$((minor + 1))
+            else
+              major=$((major + 1))
+              minor=0
+            fi
+
+            next_version="v${major}.${minor}.0"
+          fi
+
+          echo "version=${next_version}" >> "$GITHUB_OUTPUT"
+          echo "Next version: ${next_version}"
+
   build-tauri:
+    needs: determine-version
     permissions:
       contents: write
 
@@ -52,8 +93,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.0' }}
-          releaseName: 'Git Editor ${{ github.ref_type == ''tag'' && github.ref_name || ''v0.1.0'' }}'
+          tagName: ${{ needs.determine-version.outputs.version }}
+          releaseName: 'Git Editor ${{ needs.determine-version.outputs.version }}'
           releaseBody: 'Автоматическая сборка из GitHub Actions'
-          releaseDraft: true
-          prerelease: 
+          releaseDraft: false
+          prerelease: false
