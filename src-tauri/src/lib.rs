@@ -9,6 +9,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             fs_ops::open_repo,
             fs_ops::init_repo,
+            fs_ops::clone_repo,
             fs_ops::create_file,
             fs_ops::read_file,
             fs_ops::save_file,
