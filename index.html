@@ -54,7 +54,14 @@
   }
   .repo-badge:hover { border-color: var(--accent); }
 
-  .btn-sync {
+  .titlebar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-sync,
+  .btn-new-file {
     padding: 5px 12px;
     background: var(--accent);
     color: white;
@@ -68,7 +75,8 @@
     gap: 6px;
     transition: background 0.15s;
   }
-  .btn-sync:hover { background: var(--accent-hover); }
+  .btn-sync:hover,
+  .btn-new-file:hover { background: var(--accent-hover); }
   .btn-sync:disabled { opacity: 0.6; cursor: wait; }
 
   .workspace {
@@ -219,10 +227,12 @@
 
   <div class="titlebar">
     <div class="repo-badge" id="repo-selector" onclick="chooseRepo()">📁 Открыть папку...</div>
-    <div>Git Editor</div>
-    <button class="btn-sync" id="sync-btn" onclick="triggerGitSync()" disabled>
-      <span>↻ Sync</span>
-    </button>
+    <div class="titlebar-actions">
+      <button class="btn-new-file" id="new-file-btn" onclick="createNewFile()" disabled>＋ Новый файл</button>
+      <button class="btn-sync" id="sync-btn" onclick="triggerGitSync()" disabled>
+        <span>↻ Sync</span>
+      </button>
+    </div>
   </div>
 
   <div class="workspace">
@@ -282,6 +292,7 @@
       document.getElementById('repo-selector').innerText = '📁 ' + currentRepo.split(/[/\\]/).pop();
       document.getElementById('branch-name').innerText = '🌿 ' + state.branch;
       document.getElementById('sync-btn').disabled = false;
+      document.getElementById('new-file-btn').disabled = false;
 
       renderFiles(state.files);
       renderCommits(state.commits);
@@ -326,6 +337,30 @@
         const state = await invoke('open_repo', { repoPath: currentRepo });
         renderFiles(state.files);
       }
+    } catch (e) {
+      setStatus('err', String(e));
+    }
+  }
+
+  async function createNewFile() {
+    if (!currentRepo) {
+      setStatus('err', 'Сначала откройте репозиторий');
+      return;
+    }
+
+    const fileName = prompt('Введите имя файла:', 'new-file.md');
+    if (!fileName || !fileName.trim()) return;
+
+    try {
+      const createdPath = await invoke('create_file', {
+        repoPath: currentRepo,
+        fileName: fileName.trim()
+      });
+
+      await loadRepository(currentRepo);
+      const file = { name: fileName.trim(), path: createdPath };
+      await selectFile(file);
+      setStatus('ok', 'Файл создан');
     } catch (e) {
       setStatus('err', String(e));
     }
