@@ -17,7 +17,7 @@ pub fn open_repo(repo_path: String) -> Result<RepoState, String> {
     for entry in entries.flatten() {
         let file_name = entry.file_name().to_string_lossy().to_string();
         if file_name.starts_with('.') {
-            continue; // Пропускаем .git, .DS_Store и т.д.
+            continue;
         }
         if entry.path().is_file() {
             let git_status = status_map.get(&file_name).cloned();

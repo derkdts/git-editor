@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct FileEntry {
     pub name: String,
     pub path: String,
-    pub git_status: Option<String>, // "M" (Modified), "U" (Untracked), None
+    pub git_status: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
