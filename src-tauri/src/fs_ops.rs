@@ -1,7 +1,8 @@
 use crate::git_ops::{get_commits, get_current_branch, get_status_map};
 use crate::models::{FileEntry, RepoState};
-use std::fs;
-use std::path::Path;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::{Component, Path};
 
 #[tauri::command]
 pub fn open_repo(repo_path: String) -> Result<RepoState, String> {
@@ -39,6 +40,42 @@ pub fn open_repo(repo_path: String) -> Result<RepoState, String> {
         files,
         commits,
     })
+}
+
+#[tauri::command]
+pub fn create_file(repo_path: String, file_name: String) -> Result<String, String> {
+    let name = file_name.trim();
+    let relative_path = Path::new(name);
+    if name.is_empty()
+        || name.starts_with('.')
+        || relative_path.components().count() != 1
+        || !matches!(relative_path.components().next(), Some(Component::Normal(_)))
+        || name.chars().any(char::is_control)
+    {
+        return Err("Укажите имя файла без пути и без управляющих символов".to_string());
+    }
+
+    let repo = Path::new(&repo_path);
+    if !repo.join(".git").exists() {
+        return Err("В выбранной папке не инициализирован Git-репозиторий".to_string());
+    }
+
+    let path = repo.join(relative_path);
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                format!("Файл «{}» уже существует", name)
+            } else {
+                format!("Не удалось создать файл: {}", e)
+            }
+        })?;
+    file.write_all(b"")
+        .map_err(|e| format!("Не удалось создать файл: {}", e))?;
+
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
