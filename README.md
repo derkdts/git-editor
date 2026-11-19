@@ -1,61 +1,61 @@
 # Git Editor
 
-Небольшой настольный редактор файлов Git-репозиториев на Tauri. Он позволяет открыть или клонировать локальный репозиторий, редактировать файлы и сохранять изменения в локальную историю Git без необходимости работать с Git только через терминал.
+A small desktop file editor for Git repositories built with Tauri. It lets you open or clone a local repository and edit its files, save changes, and create local commits through a simple interface.
 
-> Интерфейс и сообщения приложения сейчас преимущественно на русском языке. Приложение выполняет локальные коммиты, но не отправляет изменения на удалённый сервер.
+> The interface and application messages are currently mostly in Russian. The application performs local operations only and does not send repository or file contents to a server.
 
-## Возможности сейчас
+## Current features
 
-- Открытие существующего репозитория и инициализация Git в выбранной папке.
-- Клонирование репозитория по HTTPS, HTTP, SSH или адресу `git@host:path` в пустую папку.
-- Просмотр списка файлов верхнего уровня и отметок изменённых (`M`) и новых (`U`) файлов.
-- Создание файла, редактирование его текста и сохранение на диск.
-- Сохранение изменений в локальный Git-коммит кнопкой «Сохранить локально».
-- Просмотр до 20 последних коммитов и чтение версии выбранного файла из коммита в отдельной панели только для чтения. Рабочая копия при таком просмотре не переключается.
-- Отображение текущей ветки и состояния сохранения; предупреждение перед потерей несохранённых изменений.
+- Open an existing repository or initialize Git in the selected folder.
+- Clone a repository over HTTPS, HTTP, SSH, or a `git@host:path` address into an empty folder.
+- View a list of top-level files and markers for modified (`M`) and new (`U`) files.
+- Create a file, edit its text, and save it to disk.
+- Save changes as a local Git commit using the **Save locally** button.
+- View up to 20 recent commits and read the selected file version from a commit in a separate read-only panel.
+- Display the current branch and save state, and warn before losing unsaved changes.
 
-## Как устроено
+## Architecture
 
-- **Интерфейс:** `index.html` содержит HTML-разметку, стили и основной JavaScript-код приложения. Через `window.__TAURI__.core.invoke` он вызывает команды Rust, а диалог выбора папки предоставляет Tauri dialog plugin.
-- **Мост типов:** `src/tauriBridge.ts` описывает типы состояния репозитория и обёртки для вызовов команд Tauri.
-- **Backend:** `src-tauri/src/lib.rs` регистрирует команды; `fs_ops.rs` реализует операции с файлами и репозиториями; `git_ops.rs` запускает системный `git` и обрабатывает историю, статус и локальные коммиты; `models.rs` содержит структуры данных для обмена с интерфейсом.
-- **Вызовы Git:** команды выполняются в выбранной папке через системный исполняемый файл `git`. Блокирующие операции вынесены в `spawn_blocking`, чтобы не задерживать основной runtime Tauri.
-- **Конфигурация:** `src-tauri/tauri.conf.json` задаёт настройки приложения и `frontendDist: "../dist"`; Rust-зависимости указаны в `src-tauri/Cargo.toml`, зависимости Tauri JS — в корневом `package.json`.
+- **Interface:** `index.html` contains the HTML markup, styles, and the application's main JavaScript code. It uses `window.__TAURI__.core.invoke` for calls to Tauri commands.
+- **Type bridge:** `src/tauriBridge.ts` defines the repository state types and wrappers for Tauri command calls.
+- **Backend:** `src-tauri/src/lib.rs` registers the commands; `fs_ops.rs` implements file and repository operations; `git_ops.rs` performs Git operations.
+- **Git calls:** Commands run in the selected folder through the system `git` executable. Blocking operations are executed in a worker thread to keep the interface responsive.
+- **Configuration:** `src-tauri/tauri.conf.json` contains the application settings and `frontendDist: "../dist"`; Rust dependencies are listed in `src-tauri/Cargo.toml`.
 
-### Ограничения текущей версии
+### Limitations of the current version
 
-- В список попадают только обычные файлы непосредственно в корне репозитория: вложенные папки и файлы внутри них не отображаются.
-- Редактор — обычное текстовое поле без подсветки синтаксиса и встроенного построчного diff.
-- Кнопка сохранения делает локальный коммит всех изменений репозитория (`git add --all`), а не только открытого файла. Сообщение и автор коммита задаются приложением автоматически.
-- Нет операций push/pull и управления удалёнными репозиториями или ветками.
-- Для сборки интерфейса конфигурация Tauri ожидает каталог `dist`, но в корневом `package.json` пока нет скрипта сборки, а исходная страница находится в `index.html`. Перед запуском через Tauri необходимо настроить сборку/копирование страницы в `dist` либо согласовать `frontendDist` с фактическим расположением фронтенда.
+- The list includes only regular files directly in the repository root: nested folders and files inside them are not shown.
+- The editor is a plain text field with no syntax highlighting or built-in line-by-line diff.
+- The save button creates a local commit for all repository changes (`git add --all`), not only for the open file.
+- There are no push/pull operations or remote repository or branch management.
+- For interface builds, the Tauri configuration expects a `dist` directory, but the root `package.json` does not yet contain a build script, and generated output must be arranged manually.
 
-## Запуск и разработка
+## Running and development
 
-Требуются Node.js с npm, Rust с Cargo, системные зависимости Tauri 2 для вашей ОС и установленный Git. Для Git-операций приложение должно иметь доступ к команде `git`; для клонирования также нужны сеть и соответствующие SSH-ключи или учётные данные.
+Node.js with npm, Rust with Cargo, Tauri 2 system dependencies for your OS, and Git must be installed. Git operations require Git to be available in `PATH`.
 
-После настройки расположения фронтенда, чтобы оно соответствовало `frontendDist` в `src-tauri/tauri.conf.json`:
+After configuring the frontend location to match `frontendDist` in `src-tauri/tauri.conf.json`:
 
 ```sh
 npm install
 npm run tauri dev
 ```
 
-Скрипт `tauri` в `package.json` передаёт аргументы CLI Tauri. Сейчас автоматический `beforeDevCommand`/скрипт сборки фронтенда не задан, поэтому для чистого клона сначала потребуется подготовить `dist` или обновить конфигурацию. Официальные требования к системным зависимостям зависят от ОС: [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+The `tauri` script in `package.json` passes arguments to the Tauri CLI. Automatic `beforeDevCommand` and frontend build scripts are not currently configured.
 
 ---
 
-Не реализованные идеи:
+Ideas not yet implemented:
 
-1. **Навигация по всему репозиторию:** древовидный список вложенных папок, создание файлов в выбранной директории и корректное отображение Git-статусов для путей.
-2. **Удобный редактор:** подсветка синтаксиса, номера строк, поиск/замена, горячие клавиши и выбор кодировки.
-3. **Настоящее сравнение изменений:** построчный diff рабочего файла с `HEAD` и выбранным коммитом, с подсветкой добавлений и удалений.
-4. **Контроль коммитов:** ввод сообщения, выбор файлов для коммита, просмотр diff перед подтверждением и настройка автора.
-5. **Работа с ветками и remote:** создание/переключение веток, просмотр удалённых репозиториев, fetch, pull и push с понятной обработкой конфликтов.
-6. **Безопасность и устойчивость:** автосохранение или восстановление черновика, подтверждение перед опасными Git-операциями, корректная обработка бинарных/больших файлов и тесты Rust-команд.
-7. **Сборка и релизы:** настроить единый frontend build pipeline, команды разработки и сборки для ОС, а также автоматические проверки в GitHub Actions.
+1. **Navigation throughout the repository:** A nested folder tree, file creation in the selected directory, and navigation by folder.
+2. **Improved editor:** Syntax highlighting, line numbers, find and replace, keyboard shortcuts, and encoding selection.
+3. **Real change comparison:** A line-by-line diff of the working file against `HEAD` and the selected commit, with highlighting of added and removed lines.
+4. **Commit controls:** Commit message input, file selection for commits, diff preview before confirmation, and commit author settings.
+5. **Branch and remote operations:** Creating and switching branches, viewing remotes, fetching, pulling, and pushing with clear status and error messages.
+6. **Security and resilience:** Autosave or draft recovery, confirmation before dangerous operations, validation of repository paths, and safe handling of untrusted repositories.
+7. **Build and releases:** Configure a unified frontend build pipeline, development and build commands for operating systems, and automatic versioning and packaging.
 
-## Структура проекта
+## Project structure
 
 ```text
 .
@@ -67,8 +67,8 @@ npm run tauri dev
     ├── Cargo.toml
     ├── tauri.conf.json
     └── src/
-        ├── fs_ops.rs       # файлы, открытие/инициализация/клонирование репозитория
-        ├── git_ops.rs      # Git-статус, история и локальные коммиты
-        ├── lib.rs          # регистрация команд Tauri
-        └── models.rs       # структуры данных
+        ├── fs_ops.rs       # files, repository open/initialize/clone
+        ├── git_ops.rs      # Git status, history, and local commits
+        ├── lib.rs          # Tauri command registration
+        └── models.rs       # data structures
 ```
