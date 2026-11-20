@@ -18,15 +18,19 @@
   .toolbar-button.primary:hover:not(:disabled) { background:var(--accent-hover); }
   .toolbar-button:disabled { opacity:.5; cursor:not-allowed; }
   .workspace { display:flex; flex:1; min-height:0; overflow:hidden; }
-  .sidebar { width:240px; min-width:180px; background:var(--bg-sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; }
+  .sidebar { width:260px; min-width:190px; background:var(--bg-sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; }
   .sidebar-section-title { padding:12px 14px 8px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); }
-  .file-tree { list-style:none; padding:0 8px; flex:1; overflow-y:auto; }
-  .file-item { padding:7px 10px; border-radius:6px; font-size:13px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; margin-bottom:2px; }
-  .file-item:hover { background:var(--bg-hover); } .file-item.active { background:#27272a; color:#fff; font-weight:500; }
-  .git-badge { font-size:11px; font-weight:700; padding:1px 5px; border-radius:4px; }
+  .file-tree { list-style:none; padding:0 6px 12px; flex:1; overflow:auto; }
+  .tree-children { list-style:none; margin:0; padding:0; }
+  .tree-row { min-height:30px; width:100%; padding:5px 8px; border:0; border-radius:5px; background:transparent; color:var(--text-main); font-size:13px; display:flex; align-items:center; gap:6px; text-align:left; cursor:pointer; }
+  .tree-row:hover { background:var(--bg-hover); }
+  .tree-row.active { background:#27272a; color:#fff; font-weight:500; }
+  .tree-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+  .tree-caret { width:12px; flex:0 0 12px; color:var(--text-muted); font-size:10px; }
+  .git-badge { font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px; }
   .badge-m { color:var(--git-mod); background:rgba(234,179,8,.15); } .badge-u { color:var(--git-new); background:rgba(34,197,94,.15); }
   .editor-container { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg-main); }
-  .editor-tabs { height:36px; flex:0 0 36px; background:var(--bg-header); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 12px; color:var(--text-muted); }
+  .editor-tabs { height:36px; flex:0 0 36px; background:var(--bg-header); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 12px; color:var(--text-muted); font-size:12px; }
   .comparison-close { display:none; }
   .editor-panes { flex:1; min-height:0; display:flex; overflow:hidden; }
   .editor-pane { flex:1; min-width:0; display:flex; flex-direction:column; }
@@ -43,12 +47,12 @@
   .dot-ok { background:var(--git-new); } .dot-warn { background:var(--git-mod); } .dot-err { background:var(--git-err); }
   .commit-trigger { cursor:pointer; padding:2px 6px; border-radius:4px; color:var(--text-main); white-space:nowrap; }
   .commit-trigger:hover { background:var(--bg-hover); }
-  .commit-popover { position:absolute; bottom:36px; left:12px; width:min(420px,90vw); max-height:300px; overflow-y:auto; background:var(--bg-header); border:1px solid var(--border); border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,.5); display:none; z-index:100; }
+  .commit-popover { position:absolute; bottom:36px; left:12px; width:min(420px,90vw); max-height:300px; overflow:auto; background:var(--bg-header); border:1px solid var(--border); border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,.5); display:none; z-index:100; }
   .commit-popover.open { display:block; }
   .commit-popover-header { padding:8px 12px; font-size:11px; text-transform:uppercase; color:var(--text-muted); border-bottom:1px solid var(--border); }
   .commit-item { padding:8px 12px; border-bottom:1px solid #26262a; cursor:pointer; font-size:12px; }
   .commit-item:hover { background:var(--bg-hover); } .commit-hash { color:var(--accent); font-family:monospace; margin-right:6px; }
-  @media(max-width:760px) { .titlebar{flex-wrap:wrap} .titlebar-actions{flex-wrap:wrap;justify-content:flex-end} .sidebar{width:180px;min-width:145px} .editor-panes.comparing{flex-direction:column} .editor-panes.comparing .editor-pane + .editor-pane{border-left:0;border-top:1px solid var(--border)} .toolbar-button{padding:6px 8px} }
+  @media(max-width:760px) { .titlebar{flex-wrap:wrap} .titlebar-actions{flex-wrap:wrap;justify-content:flex-end} .sidebar{width:205px;min-width:155px} .editor-panes.comparing{flex-direction:column} .editor-panes.comparing .editor-pane+.editor-pane{border-left:0;border-top:1px solid var(--border)} .toolbar-button{padding:6px 8px} }
 </style>
 </head>
 <body>
@@ -62,26 +66,17 @@
     </div>
   </div>
   <div class="workspace">
-    <aside class="sidebar"><div class="sidebar-section-title">Файлы репозитория</div><ul class="file-tree" id="file-list"></ul></aside>
+    <aside class="sidebar"><div class="sidebar-section-title">Файлы репозитория</div><ul class="file-tree" id="file-list" role="tree"></ul></aside>
     <main class="editor-container">
-      <div class="editor-tabs">
-        <div id="current-tab-name">Файл не выбран</div>
-        <button class="toolbar-button comparison-close" id="comparison-close" onclick="closeComparison()">Закрыть сравнение</button>
-      </div>
+      <div class="editor-tabs"><div id="current-tab-name">Файл не выбран</div><button class="toolbar-button comparison-close" id="comparison-close" onclick="closeComparison()">Закрыть сравнение</button></div>
       <div class="editor-panes" id="editor-panes">
-        <section class="editor-pane" id="working-pane">
-          <div class="pane-label"><span id="working-label">Рабочая версия</span><span id="working-dirty"></span></div>
-          <textarea class="editor" id="code-area" placeholder="Откройте или инициализируйте папку Git и выберите файл..." disabled></textarea>
-        </section>
-        <section class="editor-pane" id="history-pane">
-          <div class="pane-label"><span id="history-label">Сохранённая версия</span><span class="readonly-mark">только просмотр</span></div>
-          <textarea class="editor" id="history-area" readonly placeholder="Выберите коммит в истории" tabindex="-1"></textarea>
-        </section>
+        <section class="editor-pane" id="working-pane"><div class="pane-label"><span id="working-label">Рабочая версия</span><span id="working-dirty"></span></div><textarea class="editor" id="code-area" placeholder="Откройте или инициализируйте папку Git и выберите файл..." disabled></textarea></section>
+        <section class="editor-pane" id="history-pane"><div class="pane-label"><span id="history-label">Сохранённая версия</span><span class="readonly-mark">только просмотр</span></div><textarea class="editor" id="history-area" readonly placeholder="Выберите коммит в истории" tabindex="-1"></textarea></section>
       </div>
     </main>
   </div>
   <footer class="statusbar">
-    <div class="status-left"><span id="branch-name">🌿 —</span><span class="commit-trigger" id="last-commit-btn" onclick="toggleCommitList()">🕒 История</span><span class="dot dot-warn" id="status-dot"></span><span id="git-status-text">Ожидание открытия папки</span></div>
+    <div class="status-left"><span id="branch-name">🌿 —</span><span class="commit-trigger" id="last-commit-btn" onclick="toggleCommitList()">🕒 История</span><span class="dot dot-warn" id="status-dot"></span><span id="git-status-text">Нет открытого репозитория</span></div>
     <div class="status-right"><span id="save-state">—</span></div>
     <div class="commit-popover" id="commit-popover"><div class="commit-popover-header">Локальная история коммитов — выберите версию текущего файла</div><div id="commit-list"></div></div>
   </footer>
@@ -90,29 +85,21 @@
   const { open } = window.__TAURI__.dialog;
   const codeArea = document.getElementById('code-area');
   const historyArea = document.getElementById('history-area');
-  let currentRepo = null;
-  let currentFilePath = null;
-  let originalContent = '';
-  let hasUnsavedChanges = false;
-  let syncInProgress = false;
-  let repoLoadToken = 0;
-  let historyPreview = null;
-  let previewRequest = 0;
+  let currentRepo = null, currentFilePath = null, originalContent = '', hasUnsavedChanges = false;
+  let syncInProgress = false, repoLoadToken = 0, historyPreview = null, previewRequest = 0;
+  const collapsedFolders = new Set();
 
   function confirmDiscardChanges() {
-    if (!hasUnsavedChanges) return true;
-    return confirm('Есть несохранённые изменения. Отбросить их? Нажмите «Отмена», чтобы вернуться и сохранить кнопкой.');
+    return !hasUnsavedChanges || confirm('Есть несохранённые изменения. Отбросить их? Нажмите «Отмена», чтобы вернуться и сохранить файл.');
   }
   function updateDirtyState() {
     hasUnsavedChanges = codeArea.value !== originalContent;
     document.getElementById('working-dirty').textContent = hasUnsavedChanges ? '● не сохранено' : '';
     document.getElementById('save-state').textContent = hasUnsavedChanges ? 'Несохранённые изменения' : 'Сохранено';
-    setStatus(hasUnsavedChanges ? 'warn' : 'ok', hasUnsavedChanges ? 'Изменения не сохранены — нажмите кнопку' : 'Нет несохранённых изменений');
+    setStatus(hasUnsavedChanges ? 'warn' : 'ok', hasUnsavedChanges ? 'Изменения не сохранены — нажмите кнопку сохранения' : 'Нет несохранённых изменений');
   }
   function closeComparison() {
-    historyPreview = null;
-    previewRequest++;
-    historyArea.value = '';
+    historyPreview = null; previewRequest++; historyArea.value = '';
     document.getElementById('history-pane').style.display = 'none';
     document.getElementById('editor-panes').classList.remove('comparing');
     document.getElementById('comparison-close').style.display = 'none';
@@ -123,88 +110,107 @@
   async function chooseRepo() {
     try {
       if (!confirmDiscardChanges()) return;
-      const selected = await open({ directory: true, multiple: false });
-      if (!selected) return;
+      const selected = await open({ directory: true, multiple: false }); if (!selected) return;
       try { await invoke('open_repo', { repoPath: selected }); }
       catch (openError) {
         if (!confirm('В папке нет Git-репозитория. Инициализировать Git здесь?')) return;
         await invoke('init_repo', { repoPath: selected });
       }
-      closeComparison();
-      currentRepo = null; currentFilePath = null; originalContent = ''; hasUnsavedChanges = false;
-      codeArea.value = ''; codeArea.disabled = true;
+      closeComparison(); currentRepo = null; currentFilePath = null; originalContent = ''; hasUnsavedChanges = false;
+      codeArea.value = ''; codeArea.disabled = true; collapsedFolders.clear();
       await loadRepository(selected);
     } catch (e) { setStatus('err', String(e)); }
   }
   async function cloneRepository() {
     try {
       if (!confirmDiscardChanges()) return;
-      const repoUrl = prompt('Введите URL Git-репозитория (HTTPS или SSH):');
-      if (!repoUrl || !repoUrl.trim()) return;
-      const destination = await open({ directory: true, multiple: false });
-      if (!destination) return;
+      const repoUrl = prompt('Введите URL Git-репозитория (HTTPS или SSH):'); if (!repoUrl || !repoUrl.trim()) return;
+      const destination = await open({ directory: true, multiple: false }); if (!destination) return;
       setStatus('warn', 'Клонирование выполняется в фоне…');
       const button = document.getElementById('clone-btn'); button.disabled = true;
       await invoke('clone_repo', { repoUrl: repoUrl.trim(), destinationPath: destination });
-      closeComparison();
-      currentRepo = null; currentFilePath = null; originalContent = ''; hasUnsavedChanges = false;
-      codeArea.value = ''; codeArea.disabled = true;
-      await loadRepository(destination);
-      setStatus('ok', 'Репозиторий клонирован; изменения сохраняются по кнопке');
+      closeComparison(); currentRepo = null; currentFilePath = null; originalContent = ''; hasUnsavedChanges = false;
+      codeArea.value = ''; codeArea.disabled = true; collapsedFolders.clear();
+      await loadRepository(destination); setStatus('ok', 'Репозиторий клонирован; изменения сохраняются по кнопке');
     } catch (e) { setStatus('err', String(e)); }
     finally { document.getElementById('clone-btn').disabled = false; }
   }
   async function loadRepository(repoPath, options = {}) {
     const token = ++repoLoadToken;
     try {
-      const state = await invoke('open_repo', { repoPath });
-      if (token !== repoLoadToken) return;
+      const state = await invoke('open_repo', { repoPath }); if (token !== repoLoadToken) return;
       currentRepo = state.repo_path;
       document.getElementById('repo-selector').textContent = '📁 ' + currentRepo.split(/[/\\]/).pop();
       document.getElementById('branch-name').textContent = '🌿 ' + state.branch;
-      document.getElementById('sync-btn').disabled = false;
-      document.getElementById('new-file-btn').disabled = false;
-      renderFiles(state.files); renderCommits(state.commits);
-      setStatus('ok', 'Локальный Git-репозиторий открыт');
+      document.getElementById('sync-btn').disabled = false; document.getElementById('new-file-btn').disabled = false;
+      renderFiles(state.files); renderCommits(state.commits); setStatus('ok', 'Локальный Git-репозиторий открыт');
       if (options.selectFirst !== false && state.files.length && !currentFilePath) await selectFile(state.files[0]);
     } catch (e) { if (token === repoLoadToken) setStatus('err', String(e)); throw e; }
   }
   function renderFiles(files) {
     const list = document.getElementById('file-list'); list.replaceChildren();
+    const root = { dirs: new Map(), files: [] };
     for (const file of files) {
-      const li = document.createElement('li'); li.className = 'file-item' + (file.path === currentFilePath ? ' active' : '');
-      li.onclick = () => selectFile(file);
-      const label = document.createElement('span'); label.textContent = '📄 ' + file.name; li.appendChild(label);
-      if (file.git_status) { const badge = document.createElement('span'); badge.className = 'git-badge ' + (file.git_status === 'M' ? 'badge-m' : 'badge-u'); badge.textContent = file.git_status; li.appendChild(badge); }
-      list.appendChild(li);
+      const relative = currentRepo && file.path.startsWith(currentRepo)
+        ? file.path.slice(currentRepo.length).replace(/^[\\/]+/, '') : file.name;
+      const parts = relative.split(/[\\/]/).filter(Boolean); if (!parts.length) continue;
+      let node = root;
+      for (const part of parts.slice(0, -1)) {
+        if (!node.dirs.has(part)) node.dirs.set(part, { dirs: new Map(), files: [] });
+        node = node.dirs.get(part);
+      }
+      node.files.push({ ...file, name: parts[parts.length - 1], relative });
     }
+    function draw(parent, node, depth, parentKey) {
+      const dirs = [...node.dirs.entries()].sort(([a],[b]) => a.localeCompare(b));
+      for (const [name, child] of dirs) {
+        const key = parentKey ? parentKey + '/' + name : name;
+        const collapsed = collapsedFolders.has(key);
+        const li = document.createElement('li'); li.setAttribute('role','none');
+        const row = document.createElement('button'); row.type = 'button'; row.className = 'tree-row folder-row';
+        row.style.paddingLeft = `${8 + depth * 14}px`; row.setAttribute('role','treeitem'); row.setAttribute('aria-expanded', String(!collapsed));
+        const caret = document.createElement('span'); caret.className = 'tree-caret'; caret.textContent = collapsed ? '▶' : '▼';
+        const label = document.createElement('span'); label.className = 'tree-label'; label.textContent = '📁 ' + name;
+        row.append(caret, label); row.onclick = () => { collapsed ? collapsedFolders.delete(key) : collapsedFolders.add(key); renderFiles(files); };
+        li.appendChild(row);
+        if (!collapsed) { const children = document.createElement('ul'); children.className = 'tree-children'; children.setAttribute('role','group'); draw(children, child, depth + 1, key); li.appendChild(children); }
+        parent.appendChild(li);
+      }
+      node.files.sort((a,b) => a.name.localeCompare(b.name));
+      for (const file of node.files) {
+        const li = document.createElement('li'); li.setAttribute('role','none');
+        const row = document.createElement('button'); row.type = 'button'; row.className = 'tree-row file-row' + (file.path === currentFilePath ? ' active' : '');
+        row.style.paddingLeft = `${8 + depth * 14}px`; row.setAttribute('role','treeitem'); row.setAttribute('aria-selected', String(file.path === currentFilePath));
+        const spacer = document.createElement('span'); spacer.className = 'tree-caret';
+        const label = document.createElement('span'); label.className = 'tree-label'; label.textContent = '📄 ' + file.name; label.title = file.relative;
+        row.append(spacer, label);
+        if (file.git_status) { const badge = document.createElement('span'); badge.className = 'git-badge ' + (file.git_status === 'M' ? 'badge-m' : 'badge-u'); badge.textContent = file.git_status; row.appendChild(badge); }
+        row.onclick = () => selectFile(file); li.appendChild(row); parent.appendChild(li);
+      }
+    }
+    draw(list, root, 0, '');
   }
   async function selectFile(file) {
     if (file.path !== currentFilePath && !confirmDiscardChanges()) return;
     try {
       const content = await invoke('read_file', { filePath: file.path });
       currentFilePath = file.path; originalContent = content; hasUnsavedChanges = false;
-      document.getElementById('current-tab-name').textContent = file.name;
+      document.getElementById('current-tab-name').textContent = file.relative || file.name;
       document.getElementById('working-label').textContent = 'Рабочая версия';
       codeArea.disabled = false; codeArea.readOnly = false; codeArea.value = content;
-      document.getElementById('working-dirty').textContent = '';
-      document.getElementById('save-state').textContent = 'Сохранено';
+      document.getElementById('working-dirty').textContent = ''; document.getElementById('save-state').textContent = 'Сохранено';
       if (historyPreview) await loadHistoricalVersion(historyPreview.hash, historyPreview.shortHash);
       if (currentRepo) { const state = await invoke('open_repo', { repoPath: currentRepo }); renderFiles(state.files); }
     } catch (e) { setStatus('err', String(e)); }
   }
-  codeArea.addEventListener('input', () => {
-    if (!currentFilePath || historyPreview) return;
-    updateDirtyState();
-  });
+  codeArea.addEventListener('input', () => { if (!currentFilePath || historyPreview) return; updateDirtyState(); });
   async function createNewFile() {
-    if (!currentRepo) return;
-    if (!confirmDiscardChanges()) return;
-    const fileName = prompt('Введите имя файла:', 'new-file.md'); if (!fileName || !fileName.trim()) return;
+    if (!currentRepo || !confirmDiscardChanges()) return;
+    const fileName = prompt('Введите имя файла в корне репозитория:', 'new-file.md'); if (!fileName || !fileName.trim()) return;
     try {
       const createdPath = await invoke('create_file', { repoPath: currentRepo, fileName: fileName.trim() });
       await loadRepository(currentRepo, { selectFirst: false });
-      await selectFile({ name: fileName.trim(), path: createdPath });
+      await selectFile({ name: fileName.trim(), path: createdPath, relative: fileName.trim() });
       setStatus('ok', 'Файл создан; изменения сохраняются по кнопке');
     } catch (e) { setStatus('err', String(e)); }
   }
@@ -213,38 +219,29 @@
     syncInProgress = true; const button = document.getElementById('sync-btn'); button.disabled = true; button.textContent = '⏳ Сохранение…';
     setStatus('warn', 'Сохранение изменений в локальный Git…');
     try {
-      if (hasUnsavedChanges && currentFilePath) {
-        await invoke('save_file', { filePath: currentFilePath, content: codeArea.value });
-        originalContent = codeArea.value; hasUnsavedChanges = false; document.getElementById('working-dirty').textContent = '';
-      }
+      if (hasUnsavedChanges && currentFilePath) { await invoke('save_file', { filePath: currentFilePath, content: codeArea.value }); originalContent = codeArea.value; hasUnsavedChanges = false; document.getElementById('working-dirty').textContent = ''; }
       const commit = await invoke('git_sync', { repoPath: currentRepo });
       const state = await invoke('open_repo', { repoPath: currentRepo }); renderFiles(state.files); renderCommits(state.commits);
       if (historyPreview) await loadHistoricalVersion(historyPreview.hash, historyPreview.shortHash);
-      document.getElementById('save-state').textContent = 'Сохранено локально';
-      setStatus('ok', `Сохранено в локальную историю (${commit.short_hash})`);
+      document.getElementById('save-state').textContent = 'Сохранено локально'; setStatus('ok', `Сохранено в локальную историю (${commit.short_hash})`);
     } catch (e) { setStatus('err', String(e)); }
     finally { syncInProgress = false; button.disabled = !currentRepo; button.textContent = '💾 Сохранить локально'; }
   }
   async function previewCommit(hash, shortHash) {
     if (!currentRepo || !currentFilePath) { setStatus('err', 'Сначала выберите файл для сравнения с историей'); return; }
-    const request = ++previewRequest;
-    historyPreview = { hash, shortHash };
-    document.getElementById('history-pane').style.display = 'flex';
-    document.getElementById('editor-panes').classList.add('comparing');
+    const request = ++previewRequest; historyPreview = { hash, shortHash };
+    document.getElementById('history-pane').style.display = 'flex'; document.getElementById('editor-panes').classList.add('comparing');
     document.getElementById('comparison-close').style.display = 'inline-block';
     document.getElementById('history-label').textContent = `Версия ${shortHash} (только просмотр)`;
     document.getElementById('sync-btn').disabled = !currentRepo || syncInProgress;
-    setStatus('warn', `Загрузка сохранённой версии ${shortHash}…`);
-    await loadHistoricalVersion(hash, shortHash, request);
+    setStatus('warn', `Загрузка сохранённой версии ${shortHash}…`); await loadHistoricalVersion(hash, shortHash, request);
   }
   async function loadHistoricalVersion(hash, shortHash, request = ++previewRequest) {
-    if (!currentRepo || !currentFilePath) return;
-    const pathAtRequest = currentFilePath;
+    if (!currentRepo || !currentFilePath) return; const pathAtRequest = currentFilePath;
     try {
       const content = await invoke('read_file_at_commit', { repoPath: currentRepo, filePath: pathAtRequest, hash });
       if (request !== previewRequest || pathAtRequest !== currentFilePath) return;
-      historyArea.value = content;
-      historyArea.scrollTop = codeArea.scrollTop;
+      historyArea.value = content; historyArea.scrollTop = codeArea.scrollTop;
       document.getElementById('history-label').textContent = `Версия ${shortHash} (только просмотр)`;
       setStatus('ok', `Сравнение: рабочая версия и коммит ${shortHash}`);
     } catch (e) {
@@ -254,22 +251,23 @@
       setStatus('warn', 'В выбранном коммите файл отсутствует или не читается');
     }
   }
-  codeArea.addEventListener('scroll', () => {
-    if (historyPreview) historyArea.scrollTop = codeArea.scrollTop;
-  });
+  codeArea.addEventListener('scroll', () => { if (historyPreview) historyArea.scrollTop = codeArea.scrollTop; });
   function renderCommits(commits) {
     const container = document.getElementById('commit-list'); container.replaceChildren();
     const trigger = document.getElementById('last-commit-btn'); trigger.textContent = commits.length ? `🕒 ${commits[0].message} (${commits[0].short_hash})` : '🕒 История пуста';
     for (const commit of commits) {
       const item = document.createElement('div'); item.className = 'commit-item';
-      const title = document.createElement('div'); const hash = document.createElement('span'); hash.className = 'commit-hash'; hash.textContent = commit.short_hash;
+      const title = document.createElement('div'), hash = document.createElement('span'); hash.className = 'commit-hash'; hash.textContent = commit.short_hash;
       const message = document.createElement('strong'); message.textContent = commit.message; title.append(hash, message);
       const date = document.createElement('div'); date.style.cssText = 'color:var(--text-muted);font-size:11px;margin-top:2px'; date.textContent = commit.date;
       item.append(title, date); item.onclick = () => { document.getElementById('commit-popover').classList.remove('open'); previewCommit(commit.hash, commit.short_hash); }; container.appendChild(item);
     }
   }
   function toggleCommitList() { document.getElementById('commit-popover').classList.toggle('open'); }
-  function setStatus(type, text) { const dot = document.getElementById('status-dot'); dot.className = 'dot ' + (type === 'ok' ? 'dot-ok' : type === 'warn' ? 'dot-warn' : 'dot-err'); document.getElementById('git-status-text').textContent = text; }
+  function setStatus(type, text) {
+    const dot = document.getElementById('status-dot'); dot.className = 'dot ' + (type === 'ok' ? 'dot-ok' : type === 'warn' ? 'dot-warn' : 'dot-err');
+    document.getElementById('git-status-text').textContent = text;
+  }
 </script>
 </body>
 </html>
