@@ -40,13 +40,13 @@ pub fn get_current_branch(dir: &str) -> String {
 
 pub fn get_status_map(dir: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
-    if let Ok(output) = run_git(dir, &["status", "--porcelain"] ) {
+    if let Ok(output) = run_git(dir, &["-c", "core.quotepath=false", "status", "--porcelain", "--untracked-files=all"]) {
         for line in output.lines() {
             if line.len() < 4 {
                 continue;
             }
             let code = &line[0..2];
-            let file_path = line[3..].trim().trim_matches('"').to_string();
+            let file_path = line[3..].trim().trim_matches('"').replace('\\', "/");
             let badge = if code.contains('?') { "U" } else { "M" };
             map.insert(file_path, badge.to_string());
         }

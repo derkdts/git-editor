@@ -52,6 +52,32 @@ pub async fn clone_repo(repo_url: String, destination_path: String) -> Result<()
     .map_err(|e| format!("Ошибка фоновой задачи Git: {}", e))?
 }
 
+/// Recursively collect regular files without following symlinks. Hidden files
+/// and directories (including .git) remain excluded as in the original listing.
+fn collect_files(root: &Path, directory: &Path, status_map: &std::collections::HashMap<String, String>, files: &mut Vec<FileEntry>) -> Result<(), String> {
+    let entries = fs::read_dir(directory).map_err(|e| format!("Не удалось прочитать папку: {}", e))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Не удалось прочитать элемент папки: {}", e))?;
+        let file_name = entry.file_name().to_string_lossy().to_string();
+        if file_name.starts_with('.') {
+            continue;
+        }
+        let file_type = entry.file_type().map_err(|e| format!("Не удалось определить тип файла: {}", e))?;
+        if file_type.is_dir() {
+            collect_files(root, &entry.path(), status_map, files)?;
+        } else if file_type.is_file() {
+            let relative = entry.path().strip_prefix(root).map_err(|e| e.to_string())?;
+            let git_path = relative.to_string_lossy().replace('\\', "/");
+            files.push(FileEntry {
+                git_status: status_map.get(&git_path).cloned(),
+                name: file_name,
+                path: entry.path().to_string_lossy().to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn open_repo(repo_path: String) -> Result<RepoState, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -62,18 +88,12 @@ pub async fn open_repo(repo_path: String) -> Result<RepoState, String> {
 
         let status_map = get_status_map(&repo_path);
         let mut files = Vec::new();
-        for entry in fs::read_dir(path).map_err(|e| e.to_string())?.flatten() {
-            let file_name = entry.file_name().to_string_lossy().to_string();
-            if file_name.starts_with('.') || !entry.path().is_file() {
-                continue;
-            }
-            files.push(FileEntry {
-                git_status: status_map.get(&file_name).cloned(),
-                name: file_name,
-                path: entry.path().to_string_lossy().to_string(),
-            });
-        }
-        files.sort_by(|a, b| a.name.cmp(&b.name));
+        collect_files(path, path, &status_map, &mut files)?;
+        files.sort_by(|a, b| {
+            let a_relative = Path::new(&a.path).strip_prefix(path).unwrap_or(Path::new(&a.path));
+            let b_relative = Path::new(&b.path).strip_prefix(path).unwrap_or(Path::new(&b.path));
+            a_relative.cmp(b_relative)
+        });
 
         let commits = get_commits_data(&repo_path).unwrap_or_default();
         let branch = get_current_branch(&repo_path);
